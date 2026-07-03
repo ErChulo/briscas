@@ -12,7 +12,6 @@ interface GameBoardProps {
   readonly localMode: boolean;
   readonly busy: boolean;
   readonly message?: string | null;
-  readonly onChangeViewPlayer: (playerId: string) => void;
   readonly onPlayCard: (cardId: string) => Promise<void>;
   readonly onSwapSeven: () => Promise<void>;
   readonly onReset: () => Promise<void>;
@@ -27,7 +26,6 @@ export function GameBoard({
   localMode,
   busy,
   message,
-  onChangeViewPlayer,
   onPlayCard,
   onSwapSeven,
   onReset,
@@ -48,16 +46,7 @@ export function GameBoard({
             <h1>{state.status === GameStatus.Ended ? 'Partida terminada' : `Turno: ${activePlayerName}`}</h1>
           </div>
           {localMode ? (
-            <label>
-              Vista local
-              <select value={viewPlayer.id} onChange={(event) => onChangeViewPlayer(event.target.value)}>
-                {state.players.map((player) => (
-                  <option key={player.id} value={player.id}>
-                    {player.displayName}
-                  </option>
-                ))}
-              </select>
-            </label>
+            <p className="hint">Modo local contra IA</p>
           ) : null}
         </header>
 

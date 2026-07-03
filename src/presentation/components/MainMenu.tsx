@@ -26,10 +26,10 @@ export function MainMenu({
   return (
     <main className="menu-shell">
       <section className="hero-card">
-        <p className="eyebrow">Baraja española · Firestore · SOLID</p>
         <h1>Briscas</h1>
+        <p className="eyebrow">Barajas Espanolas</p>
         <p>
-          Juega una partida de Briscas estándar en el navegador, crea una sala online o prueba las reglas en modo local.
+          Juega una partida de Briscas estándar en el navegador, reta a la IA o crea una sala online con amigos.
         </p>
       </section>
 
@@ -50,7 +50,7 @@ export function MainMenu({
 
         <div className="button-grid">
           <button type="button" disabled={busy} onClick={() => onStartLocal(displayName, variant)}>
-            Partida local
+            Jugar contra IA
           </button>
           <button
             type="button"
@@ -62,7 +62,7 @@ export function MainMenu({
         </div>
 
         {!firebaseConfigured ? (
-          <p className="hint">Firebase no está configurado. Copia `.env.example` a `.env` para activar online.</p>
+          <p className="hint">El modo online no está configurado. Copia `.env.example` a `.env` para activarlo.</p>
         ) : null}
 
         <form

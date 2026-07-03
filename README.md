@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Local hot-seat mode works without Firebase. For online rooms, copy `.env.example` to `.env` and fill the Firebase public web config.
+Local human-vs-AI mode works without online configuration. For online rooms, copy `.env.example` to `.env` and fill the public web config.
 
 ## Verify
 

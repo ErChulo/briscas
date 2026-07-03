@@ -40,7 +40,6 @@ export function App() {
       localMode={controller.mode === 'local'}
       busy={controller.busy}
       message={controller.message}
-      onChangeViewPlayer={controller.setViewPlayerId}
       onPlayCard={controller.playCard}
       onSwapSeven={controller.swapSeven}
       onReset={controller.resetGame}

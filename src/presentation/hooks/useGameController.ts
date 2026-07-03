@@ -8,15 +8,20 @@ import { SwapSevenUseCase } from '../../application/use-cases/SwapSevenUseCase';
 import type { GameRepository } from '../../application/ports/GameRepository';
 import { SystemClock } from '../../application/services/Clock';
 import { BrowserIdGenerator } from '../../application/services/IdGenerator';
+import type { Card } from '../../domain/cards/Card';
 import { GameEngine } from '../../domain/game/GameEngine';
 import type { GameState } from '../../domain/game/GameState';
 import { GameStatus, GameVariant } from '../../domain/game/Types';
+import { BriscasRules } from '../../domain/rules/BriscasRules';
+import { StandardTrickResolver } from '../../domain/rules/TrickResolver';
 import { isFirebaseConfigured } from '../../infrastructure/config/firebaseConfig';
 import { FirebaseAuthGateway } from '../../infrastructure/firebase/FirebaseAuthGateway';
 import { FirestoreGameRepository } from '../../infrastructure/firebase/FirestoreGameRepository';
 import { InMemoryGameRepository } from '../../infrastructure/repositories/InMemoryGameRepository';
 
 type Mode = 'menu' | 'local' | 'online';
+const rules = new BriscasRules();
+const trickResolver = new StandardTrickResolver();
 
 interface CurrentPlayer {
   readonly id: string;
@@ -47,17 +52,41 @@ export function useGameController() {
   const [busy, setBusy] = useState(false);
 
   const firebaseConfigured = isFirebaseConfigured();
-  const activeViewPlayerId = mode === 'local' && state?.status === GameStatus.Playing && state.currentPlayerId
-    ? state.currentPlayerId
-    : viewPlayerId;
 
   useEffect(() => () => unsubscribe.current?.(), []);
+
+  useEffect(() => {
+    if (mode !== 'local' || !state || state.status !== GameStatus.Playing || !state.currentPlayerId) {
+      return;
+    }
+
+    if (!isBotPlayerId(state.currentPlayerId)) {
+      return;
+    }
+
+    const botPlayerId = state.currentPlayerId;
+    const cardId = chooseBotCardId(state, botPlayerId);
+    if (!cardId) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      void localContext.useCases.playCard
+        .execute({ gameId: state.gameId, playerId: botPlayerId, cardId })
+        .catch((error) => {
+          setMessage(error instanceof Error ? error.message : 'La IA no pudo jugar.');
+        });
+    }, 550);
+
+    return () => window.clearTimeout(timer);
+  }, [localContext.useCases.playCard, mode, state]);
 
   async function startLocal(displayName: string, variant: GameVariant) {
     await run(async () => {
       const host = loadLocalPlayer(displayName);
       saveLocalPlayer(host);
       setCurrentPlayer(host);
+      setViewPlayerId(host.id);
       const game = await localContext.useCases.createGame.execute({
         hostPlayerId: host.id,
         hostDisplayName: host.displayName,
@@ -69,8 +98,8 @@ export function useGameController() {
       for (let index = 1; index < maxPlayers; index += 1) {
         await localContext.useCases.joinGame.execute({
           gameId: game.gameId,
-          playerId: `local-${index}`,
-          displayName: maxPlayers === 2 ? 'Invitado local' : `Jugador ${index + 1}`,
+          playerId: `bot-${index}`,
+          displayName: maxPlayers === 2 ? 'IA' : `IA ${index}`,
         });
       }
 
@@ -82,7 +111,7 @@ export function useGameController() {
   async function createOnline(displayName: string, variant: GameVariant) {
     await run(async () => {
       if (!firebaseConfigured) {
-        throw new Error('Firebase no está configurado.');
+        throw new Error('El modo online no está configurado.');
       }
 
       const auth = new FirebaseAuthGateway();
@@ -105,7 +134,7 @@ export function useGameController() {
   async function joinOnline(displayName: string, gameId: string) {
     await run(async () => {
       if (!firebaseConfigured) {
-        throw new Error('Firebase no está configurado.');
+        throw new Error('El modo online no está configurado.');
       }
 
       const auth = new FirebaseAuthGateway();
@@ -130,7 +159,7 @@ export function useGameController() {
 
   async function playCard(cardId: string) {
     const gameState = requireState();
-    const playerId = mode === 'local' ? activeViewPlayerId : currentPlayer.id;
+    const playerId = currentPlayer.id;
     await run(async () => {
       await activeUseCases().playCard.execute({ gameId: gameState.gameId, playerId, cardId });
     });
@@ -138,7 +167,7 @@ export function useGameController() {
 
   async function swapSeven() {
     const gameState = requireState();
-    const playerId = mode === 'local' ? activeViewPlayerId : currentPlayer.id;
+    const playerId = currentPlayer.id;
     await run(async () => {
       await activeUseCases().swapSeven.execute({ gameId: gameState.gameId, playerId });
     });
@@ -146,7 +175,7 @@ export function useGameController() {
 
   async function resetGame() {
     const gameState = requireState();
-    const playerId = mode === 'local' ? activeViewPlayerId : currentPlayer.id;
+    const playerId = currentPlayer.id;
     await run(async () => {
       await activeUseCases().resetGame.execute({ gameId: gameState.gameId, playerId });
     });
@@ -200,7 +229,7 @@ export function useGameController() {
     mode,
     state,
     currentPlayer,
-    viewPlayerId: activeViewPlayerId,
+    viewPlayerId,
     message,
     busy,
     firebaseConfigured,
@@ -214,6 +243,47 @@ export function useGameController() {
     leaveGame,
     setViewPlayerId,
   };
+}
+
+function isBotPlayerId(playerId: string): boolean {
+  return playerId.startsWith('bot-');
+}
+
+function chooseBotCardId(state: GameState, botPlayerId: string): string | null {
+  const bot = state.players.find((player) => player.id === botPlayerId);
+  if (!bot) {
+    return null;
+  }
+
+  const validCards = bot.hand.toArray().filter((card) => rules.canPlayCard(state, botPlayerId, card).valid);
+  if (validCards.length === 0) {
+    return null;
+  }
+
+  const trumpSuit = state.trumpCard?.suit;
+  const trickHasPoints = state.currentTrick.plays.some((play) => play.card.pointValue > 0);
+
+  if (trumpSuit && !state.currentTrick.isEmpty) {
+    const winningCards = validCards.filter((card) =>
+      trickResolver.resolveWinner(state.currentTrick.addPlay(botPlayerId, card), trumpSuit) === botPlayerId,
+    );
+
+    if (winningCards.length > 0 && trickHasPoints) {
+      return sortConservative(winningCards)[0].id;
+    }
+  }
+
+  return sortConservative(validCards)[0].id;
+}
+
+function sortConservative(cards: readonly Card[]): readonly Card[] {
+  return [...cards].sort((left, right) => {
+    if (left.pointValue !== right.pointValue) {
+      return left.pointValue - right.pointValue;
+    }
+
+    return right.captureStrength - left.captureStrength;
+  });
 }
 
 function makeUseCases(repository: GameRepository): UseCases {

@@ -8,7 +8,7 @@ import type { GameState } from '../../domain/game/GameState';
 import type { GameId } from '../../domain/game/Types';
 import { GameStateMapper } from '../mappers/GameStateMapper';
 
-/** In-memory repository for Vitest and local hot-seat play. */
+/** In-memory repository for Vitest and local human-vs-AI play. */
 export class InMemoryGameRepository implements GameRepository {
   private readonly games = new Map<GameId, GameState>();
   private readonly listeners = new Map<GameId, Set<(state: GameState | null) => void>>();

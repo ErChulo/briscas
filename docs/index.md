@@ -9,7 +9,7 @@ npm install
 npm run dev
 ```
 
-Open the local URL printed by Vite. The app works immediately in local hot-seat mode without Firebase.
+Open the local URL printed by Vite. The app works immediately in human-vs-AI mode without online configuration.
 
 ## Firebase Setup
 
