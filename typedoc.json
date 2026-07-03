@@ -1,0 +1,8 @@
+{
+  "entryPoints": ["src/domain", "src/application"],
+  "entryPointStrategy": "expand",
+  "out": "docs/api/reference",
+  "excludePrivate": true,
+  "excludeProtected": true,
+  "readme": "none"
+}

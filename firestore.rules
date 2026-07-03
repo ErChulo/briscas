@@ -1,0 +1,56 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function isParticipant(gameId) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/games/$(gameId)/players/$(request.auth.uid));
+    }
+
+    function willBeParticipant() {
+      return signedIn()
+        && request.resource.data.playerIds is list
+        && request.resource.data.playerIds.hasAny([request.auth.uid]);
+    }
+
+    function activePlayer(gameId) {
+      return get(/databases/$(database)/documents/games/$(gameId)).data.currentPlayerId == request.auth.uid;
+    }
+
+    match /games/{gameId} {
+      allow read: if isParticipant(gameId);
+      allow create: if signedIn() && request.resource.data.hostPlayerId == request.auth.uid;
+      allow update: if isParticipant(gameId)
+        || (resource.data.status == 'waiting' && request.resource.data.status == 'waiting' && willBeParticipant());
+
+      match /players/{playerId} {
+        allow read: if isParticipant(gameId);
+        allow create: if signedIn() && playerId == request.auth.uid;
+        allow update: if signedIn() && (playerId == request.auth.uid || isParticipant(gameId));
+      }
+
+      match /moves/{moveId} {
+        allow read: if isParticipant(gameId);
+        allow create: if request.resource.data.playerId == request.auth.uid
+          && (
+            (isParticipant(gameId) && request.resource.data.type != 'PLAY_CARD')
+            || (isParticipant(gameId) && request.resource.data.type == 'PLAY_CARD' && activePlayer(gameId))
+            || request.resource.data.type == 'JOIN_GAME'
+          );
+      }
+    }
+
+    match /users/{userId} {
+      allow read: if signedIn();
+      allow create, update: if signedIn() && request.auth.uid == userId;
+
+      match /history/{matchId} {
+        allow read, write: if signedIn() && request.auth.uid == userId;
+      }
+    }
+  }
+}
