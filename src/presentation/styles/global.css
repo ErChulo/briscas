@@ -95,9 +95,9 @@ select {
 .hero-card {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
   align-self: stretch;
-  gap: clamp(1.25rem, 3vh, 2.5rem);
+  gap: clamp(0.45rem, 1.25vh, 0.9rem);
   max-width: 46rem;
 }
 
@@ -106,7 +106,7 @@ select {
 }
 
 .hero-crest {
-  flex: 1 1 auto;
+  flex: 0 1 auto;
   width: min(100%, 22rem);
   min-height: 0;
   max-height: clamp(11rem, 40vh, 25rem);
