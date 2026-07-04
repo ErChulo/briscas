@@ -1,10 +1,12 @@
 import { useState } from 'react';
+import type { OpenGameSummary } from '../../application/ports/GameRepository';
 import { GameVariant } from '../../domain/game/Types';
 import { StatusBanner } from './StatusBanner';
 
 interface MainMenuProps {
   readonly firebaseConfigured: boolean;
   readonly busy: boolean;
+  readonly openGames: readonly OpenGameSummary[];
   readonly message?: string | null;
   readonly onCreateOnline: (displayName: string, variant: GameVariant) => Promise<void>;
   readonly onJoinOnline: (displayName: string, gameId: string) => Promise<void>;
@@ -14,6 +16,7 @@ interface MainMenuProps {
 export function MainMenu({
   firebaseConfigured,
   busy,
+  openGames,
   message,
   onCreateOnline,
   onJoinOnline,
@@ -80,7 +83,58 @@ export function MainMenu({
             Unirse online
           </button>
         </form>
+
+        {firebaseConfigured ? (
+          <section className="open-rooms" aria-label="Mesas abiertas">
+            <div className="open-rooms__header">
+              <div>
+                <p className="eyebrow">Mesas abiertas</p>
+                <h2>Esperando jugadores</h2>
+              </div>
+              <small>{openGames.length} disponibles</small>
+            </div>
+            {openGames.length === 0 ? (
+              <p className="hint">No hay mesas esperando ahora. Crea una sala online para aparecer aquí.</p>
+            ) : (
+              <ul className="open-room-list">
+                {openGames.map((room) => (
+                  <li key={room.gameId} className="open-room-card">
+                    <div>
+                      <strong>{room.gameId}</strong>
+                      <span>{room.hostDisplayName}</span>
+                    </div>
+                    <div>
+                      <span>{variantLabel(room.variant)}</span>
+                      <small>
+                        {room.playerCount}/{room.maxPlayers} jugadores - {createdAtLabel(room.createdAt)}
+                      </small>
+                    </div>
+                    <button type="button" disabled={busy} onClick={() => onJoinOnline(displayName, room.gameId)}>
+                      Unirse
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
+        ) : null}
       </section>
     </main>
   );
+}
+
+function variantLabel(variant: GameVariant): string {
+  if (variant === GameVariant.Standard4P) {
+    return '4 jugadores';
+  }
+
+  if (variant === GameVariant.NoSwap) {
+    return '2 sin intercambio';
+  }
+
+  return '2 jugadores';
+}
+
+function createdAtLabel(createdAt: number): string {
+  return new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 }

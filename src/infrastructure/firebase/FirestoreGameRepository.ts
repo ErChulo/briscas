@@ -2,20 +2,24 @@ import {
   collection,
   doc,
   getDoc,
+  getDocs,
   onSnapshot,
+  query,
   runTransaction,
   setDoc,
+  where,
   type Firestore,
 } from 'firebase/firestore';
 import type {
   GameRepository,
   GameTransaction,
+  OpenGameSummary,
   PersistedGameUpdate,
 } from '../../application/ports/GameRepository';
 import { GameNotFoundError } from '../../domain/errors/DomainError';
 import type { GameState } from '../../domain/game/GameState';
 import type { Move } from '../../domain/game/Move';
-import type { GameId } from '../../domain/game/Types';
+import { GameStatus, GameVariant, type GameId } from '../../domain/game/Types';
 import {
   GameStateMapper,
   type SerializedGameState,
@@ -51,6 +55,31 @@ export class FirestoreGameRepository implements GameRepository {
     );
 
     return this.fromDocuments(gameDocument, players.filter(Boolean));
+  }
+
+  public async listOpenGames(): Promise<readonly OpenGameSummary[]> {
+    const snapshot = await getDocs(query(collection(this.db, 'games'), where('status', '==', GameStatus.Waiting)));
+    const rooms = await Promise.all(
+      snapshot.docs.map(async (gameSnapshot) => {
+        const game = gameSnapshot.data() as GameDocument;
+        const hostSnapshot = await getDoc(this.playerRef(game.gameId, game.hostPlayerId));
+        const host = hostSnapshot.data() as PlayerDocument | undefined;
+
+        return {
+          gameId: game.gameId,
+          hostDisplayName: host?.displayName ?? 'Jugador',
+          variant: game.variant,
+          playerCount: game.playerIds.length,
+          maxPlayers: game.variant === GameVariant.Standard4P ? 4 : 2,
+          createdAt: game.createdAt,
+        } satisfies OpenGameSummary;
+      }),
+    );
+
+    return rooms
+      .filter((room) => room.playerCount < room.maxPlayers)
+      .sort((left, right) => right.createdAt - left.createdAt)
+      .slice(0, 12);
   }
 
   public async updateGame(update: PersistedGameUpdate): Promise<void> {

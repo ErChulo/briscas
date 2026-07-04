@@ -13,6 +13,7 @@ export function App() {
         firebaseConfigured={controller.firebaseConfigured}
         busy={controller.busy}
         message={controller.message}
+        openGames={controller.openGames}
         onCreateOnline={controller.createOnline}
         onJoinOnline={controller.joinOnline}
         onStartLocal={controller.startLocal}

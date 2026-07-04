@@ -34,6 +34,7 @@ service cloud.firestore {
     }
 
     match /games/{gameId} {
+      allow list: if signedIn() && resource.data.status == 'waiting';
       allow read: if isParticipant(gameId)
         || (signedIn() && resource.data.status == 'waiting');
       allow create: if signedIn() && request.resource.data.hostPlayerId == request.auth.uid;

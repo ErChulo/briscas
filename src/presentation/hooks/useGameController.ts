@@ -5,7 +5,7 @@ import { PlayCardUseCase } from '../../application/use-cases/PlayCardUseCase';
 import { ResetGameUseCase } from '../../application/use-cases/ResetGameUseCase';
 import { StartGameUseCase } from '../../application/use-cases/StartGameUseCase';
 import { SwapSevenUseCase } from '../../application/use-cases/SwapSevenUseCase';
-import type { GameRepository } from '../../application/ports/GameRepository';
+import type { GameRepository, OpenGameSummary } from '../../application/ports/GameRepository';
 import { SystemClock } from '../../application/services/Clock';
 import { BrowserIdGenerator } from '../../application/services/IdGenerator';
 import type { Card } from '../../domain/cards/Card';
@@ -53,6 +53,7 @@ export function useGameController() {
   const [viewPlayerId, setViewPlayerId] = useState(currentPlayer.id);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [openGames, setOpenGames] = useState<readonly OpenGameSummary[]>([]);
   const [soundEnabled, setSoundEnabled] = useState(() => loadSoundPreference());
 
   const firebaseConfigured = isFirebaseConfigured();
@@ -71,6 +72,42 @@ export function useGameController() {
   }, [state?.lastCompletedTrick, state?.status, state?.version]);
 
   useEffect(() => () => unsubscribe.current?.(), []);
+
+  useEffect(() => {
+    if (mode !== 'menu' || !firebaseConfigured) {
+      return;
+    }
+
+    let cancelled = false;
+    onlineRepository.current ??= new FirestoreGameRepository();
+    const repository = onlineRepository.current;
+    const auth = new FirebaseAuthGateway();
+
+    async function load() {
+      try {
+        if (!auth.getCurrentPlayer()) {
+          await auth.signInAnonymously(currentPlayer.displayName);
+        }
+
+        const rooms = await repository.listOpenGames();
+        if (!cancelled) {
+          setOpenGames(rooms);
+        }
+      } catch {
+        if (!cancelled) {
+          setOpenGames([]);
+        }
+      }
+    }
+
+    void load();
+    const timer = window.setInterval(() => void load(), 8000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, [currentPlayer.displayName, firebaseConfigured, mode]);
 
   useEffect(() => {
     if (mode !== 'local' || !state || state.status !== GameStatus.Playing || !state.currentPlayerId) {
@@ -146,6 +183,7 @@ export function useGameController() {
       setCurrentPlayer({ id: player.uid, displayName: player.displayName });
       setViewPlayerId(player.uid);
       setMode('online');
+      setOpenGames([]);
       await subscribeTo(repository, game.gameId);
     });
   }
@@ -165,6 +203,7 @@ export function useGameController() {
       setCurrentPlayer({ id: player.uid, displayName: player.displayName });
       setViewPlayerId(player.uid);
       setMode('online');
+      setOpenGames([]);
       await subscribeTo(repository, game.gameId);
     });
   }
@@ -256,6 +295,7 @@ export function useGameController() {
     viewPlayerId,
     message,
     busy,
+    openGames,
     soundEnabled,
     firebaseConfigured,
     createOnline,

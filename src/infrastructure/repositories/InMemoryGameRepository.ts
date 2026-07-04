@@ -1,6 +1,7 @@
 import type {
   GameRepository,
   GameTransaction,
+  OpenGameSummary,
   PersistedGameUpdate,
 } from '../../application/ports/GameRepository';
 import { GameNotFoundError } from '../../domain/errors/DomainError';
@@ -21,6 +22,10 @@ export class InMemoryGameRepository implements GameRepository {
   public async getGame(gameId: GameId): Promise<GameState | null> {
     const state = this.games.get(gameId);
     return state ? this.clone(state) : null;
+  }
+
+  public async listOpenGames(): Promise<readonly OpenGameSummary[]> {
+    return [];
   }
 
   public async updateGame(update: PersistedGameUpdate): Promise<void> {
