@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { OpenGameSummary } from '../../application/ports/GameRepository';
 import { GameVariant } from '../../domain/game/Types';
 import { StatusBanner } from './StatusBanner';
+import provincialShield from '../../../escudo-provincial.png';
 
 interface MainMenuProps {
   readonly firebaseConfigured: boolean;
@@ -29,11 +30,14 @@ export function MainMenu({
   return (
     <main className="menu-shell">
       <section className="hero-card">
-        <h1>Briscas</h1>
-        <p className="eyebrow">Barajas Espanolas</p>
-        <p>
-          Juega una partida de Briscas estándar en el navegador, reta a la IA o crea una sala online con amigos.
-        </p>
+        <img className="hero-crest" src={provincialShield} alt="Escudo provincial" />
+        <div className="hero-copy">
+          <h1>Briscas</h1>
+          <p className="eyebrow">Barajas Espanolas</p>
+          <p>
+            Juega una partida de Briscas estándar en el navegador, reta a la IA o crea una sala online con amigos.
+          </p>
+        </div>
       </section>
 
       <section className="panel menu-panel" aria-label="Menú principal">

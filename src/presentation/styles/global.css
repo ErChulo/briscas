@@ -93,7 +93,30 @@ select {
 }
 
 .hero-card {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-self: stretch;
+  gap: clamp(1.25rem, 3vh, 2.5rem);
   max-width: 46rem;
+}
+
+.menu-shell {
+  align-items: stretch;
+}
+
+.hero-crest {
+  flex: 1 1 auto;
+  width: min(100%, 22rem);
+  min-height: 0;
+  max-height: clamp(11rem, 40vh, 25rem);
+  object-fit: contain;
+  object-position: left center;
+  filter: drop-shadow(0 1.5rem 2.5rem rgb(0 0 0 / 35%));
+}
+
+.hero-copy {
+  flex: 0 0 auto;
 }
 
 .hero-card h1,
