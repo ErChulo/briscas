@@ -22,6 +22,13 @@ service cloud.firestore {
         && request.resource.data.playerIds.hasAny([request.auth.uid]);
     }
 
+    function willBeParticipantAfter(gameId) {
+      return signedIn()
+        && getAfter(/databases/$(database)/documents/games/$(gameId)).data.status == 'waiting'
+        && getAfter(/databases/$(database)/documents/games/$(gameId)).data.playerIds is list
+        && getAfter(/databases/$(database)/documents/games/$(gameId)).data.playerIds.hasAny([request.auth.uid]);
+    }
+
     function activePlayer(gameId) {
       return get(/databases/$(database)/documents/games/$(gameId)).data.currentPlayerId == request.auth.uid;
     }
@@ -36,7 +43,12 @@ service cloud.firestore {
       match /players/{playerId} {
         allow read: if isParticipant(gameId) || isWaitingGame(gameId);
         allow create: if signedIn() && playerId == request.auth.uid;
-        allow update: if signedIn() && (playerId == request.auth.uid || isParticipant(gameId));
+        allow update: if signedIn()
+          && (
+            playerId == request.auth.uid
+            || isParticipant(gameId)
+            || (isWaitingGame(gameId) && willBeParticipantAfter(gameId))
+          );
       }
 
       match /moves/{moveId} {
