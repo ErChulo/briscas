@@ -40,7 +40,9 @@ export function App() {
       localMode={controller.mode === 'local'}
       busy={controller.busy}
       message={controller.message}
+      soundEnabled={controller.soundEnabled}
       onPlayCard={controller.playCard}
+      onToggleSound={controller.toggleSound}
       onSwapSeven={controller.swapSeven}
       onReset={controller.resetGame}
       onLeave={controller.leaveGame}

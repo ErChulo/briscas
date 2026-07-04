@@ -15,7 +15,9 @@ interface GameBoardProps {
   readonly localMode: boolean;
   readonly busy: boolean;
   readonly message?: string | null;
+  readonly soundEnabled: boolean;
   readonly onPlayCard: (cardId: string) => Promise<void>;
+  readonly onToggleSound: () => void;
   readonly onSwapSeven: () => Promise<void>;
   readonly onReset: () => Promise<void>;
   readonly onLeave: () => void;
@@ -35,7 +37,9 @@ export function GameBoard({
   localMode,
   busy,
   message,
+  soundEnabled,
   onPlayCard,
+  onToggleSound,
   onSwapSeven,
   onReset,
   onLeave,
@@ -177,7 +181,7 @@ export function GameBoard({
         return targetRect.top + targetRect.height / 2 - (rect.top + rect.height / 2);
       },
       duration: 0.8,
-      delay: 0.22,
+      delay: 1,
       stagger: 0.05,
       ease: 'power3.inOut',
     });
@@ -198,6 +202,9 @@ export function GameBoard({
           {localMode ? (
             <p className="hint">Modo local contra IA</p>
           ) : null}
+          <button type="button" className="sound-toggle" onClick={onToggleSound} aria-pressed={soundEnabled}>
+            Sonido {soundEnabled ? 'ON' : 'OFF'}
+          </button>
         </header>
 
         <StatusBanner message={message} tone="error" />
@@ -230,7 +237,7 @@ export function GameBoard({
               <span className="stock-count">{state.deck.count}</span>
               <small>cartas en mazo</small>
             </div>
-            <div className="stock-stack" aria-label="Mazo sobre carta de triunfo">
+            <div className="stock-stack" aria-label="Mazo sobre carta de triunfo horizontal">
               {state.trumpCard ? (
                 <div className={`trump-card-face ${state.deck.isEmpty ? 'trump-card-face--ghost' : ''}`}>
                   <CardView card={state.trumpCard} label={`Triunfo: ${state.trumpCard.toString()}`} />

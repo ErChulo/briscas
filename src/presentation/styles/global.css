@@ -223,6 +223,13 @@ select {
   padding: 0.75rem;
 }
 
+.sound-toggle {
+  min-height: 2.2rem;
+  padding: 0.45rem 0.75rem;
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
 .game-topbar h1 {
   font-size: clamp(1.6rem, 3vw, 3rem);
 }
@@ -320,20 +327,21 @@ select {
 
 .stock-stack {
   position: relative;
-  width: calc(var(--card-width) * 1.62);
-  height: calc(var(--card-width) * 1.72);
+  width: calc(var(--card-width) * 2.16);
+  height: calc(var(--card-width) * 1.68);
   margin-block: 0.1rem;
 }
 
 .trump-card-face,
 .stock-deck-card {
   position: absolute;
-  transform: translateX(-50%);
 }
 
 .trump-card-face {
-  left: calc(50% + var(--card-width) * 0.28);
-  top: calc(var(--card-width) * 0.08);
+  left: 64%;
+  top: calc(var(--card-width) * 0.34);
+  transform: translateX(-50%) rotate(90deg);
+  transform-origin: 50% 50%;
   z-index: 1;
   filter: saturate(1.08) brightness(1.05);
 }
@@ -343,8 +351,9 @@ select {
 }
 
 .stock-deck-card {
-  left: calc(50% - var(--card-width) * 0.22);
-  top: 0;
+  left: 42%;
+  top: calc(var(--card-width) * 0.04);
+  transform: translateX(-50%);
   z-index: 2;
 }
 
@@ -359,6 +368,7 @@ select {
   background: rgb(0 0 0 / 18%);
   font-size: 0.78rem;
   font-weight: 900;
+  opacity: 0.48;
   text-transform: uppercase;
 }
 

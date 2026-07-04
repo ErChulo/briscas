@@ -18,6 +18,7 @@ import { isFirebaseConfigured } from '../../infrastructure/config/firebaseConfig
 import { FirebaseAuthGateway } from '../../infrastructure/firebase/FirebaseAuthGateway';
 import { FirestoreGameRepository } from '../../infrastructure/firebase/FirestoreGameRepository';
 import { InMemoryGameRepository } from '../../infrastructure/repositories/InMemoryGameRepository';
+import { SoundEffects } from '../audio/SoundEffects';
 
 type Mode = 'menu' | 'local' | 'online';
 const rules = new BriscasRules();
@@ -43,6 +44,7 @@ export function useGameController() {
     return { repository, useCases: makeUseCases(repository) };
   });
   const onlineRepository = useRef<GameRepository | null>(null);
+  const sounds = useRef(new SoundEffects());
   const unsubscribe = useRef<(() => void) | null>(null);
   const [mode, setMode] = useState<Mode>('menu');
   const [state, setState] = useState<GameState | null>(null);
@@ -50,8 +52,22 @@ export function useGameController() {
   const [viewPlayerId, setViewPlayerId] = useState(currentPlayer.id);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [soundEnabled, setSoundEnabled] = useState(() => loadSoundPreference());
 
   const firebaseConfigured = isFirebaseConfigured();
+
+  useEffect(() => {
+    sounds.current.setEnabled(soundEnabled);
+    globalThis.localStorage?.setItem('briscas.soundEnabled', String(soundEnabled));
+  }, [soundEnabled]);
+
+  useEffect(() => {
+    if (!state?.lastCompletedTrick) {
+      return;
+    }
+
+    sounds.current.play(state.status === GameStatus.Ended ? 'win' : 'capture');
+  }, [state?.lastCompletedTrick, state?.status, state?.version]);
 
   useEffect(() => () => unsubscribe.current?.(), []);
 
@@ -70,10 +86,11 @@ export function useGameController() {
       return;
     }
 
-    const delay = state.lastCompletedTrick ? 1400 : 650;
+    const delay = state.lastCompletedTrick ? 2300 : 650;
     const timer = window.setTimeout(() => {
       void localContext.useCases.playCard
         .execute({ gameId: state.gameId, playerId: botPlayerId, cardId })
+        .then(() => sounds.current.play('play'))
         .catch((error) => {
           setMessage(error instanceof Error ? error.message : 'La IA no pudo jugar.');
         });
@@ -161,9 +178,14 @@ export function useGameController() {
   async function playCard(cardId: string) {
     const gameState = requireState();
     const playerId = currentPlayer.id;
+    sounds.current.play('play');
     await run(async () => {
       await activeUseCases().playCard.execute({ gameId: gameState.gameId, playerId, cardId });
     });
+  }
+
+  function toggleSound() {
+    setSoundEnabled((enabled) => !enabled);
   }
 
   async function swapSeven() {
@@ -233,12 +255,14 @@ export function useGameController() {
     viewPlayerId,
     message,
     busy,
+    soundEnabled,
     firebaseConfigured,
     createOnline,
     joinOnline,
     startLocal,
     startGame,
     playCard,
+    toggleSound,
     swapSeven,
     resetGame,
     leaveGame,
@@ -317,4 +341,8 @@ function loadLocalPlayer(displayName: string): CurrentPlayer {
 
 function saveLocalPlayer(player: CurrentPlayer): void {
   globalThis.localStorage?.setItem('briscas.localPlayer', JSON.stringify(player));
+}
+
+function loadSoundPreference(): boolean {
+  return globalThis.localStorage?.getItem('briscas.soundEnabled') !== 'false';
 }
