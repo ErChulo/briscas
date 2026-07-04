@@ -1,4 +1,4 @@
-import { useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { BriscasRules } from '../../domain/rules/BriscasRules';
 import { GameStatus } from '../../domain/game/Types';
@@ -42,15 +42,43 @@ export function GameBoard({
 }: GameBoardProps) {
   const tableAreaRef = useRef<HTMLElement>(null);
   const trickZoneRef = useRef<HTMLDivElement>(null);
+  const scoreboardDrawerRef = useRef<HTMLDivElement>(null);
   const animatedPlayKeys = useRef(new Set<string>());
   const animatedCompletedVersion = useRef<number | null>(null);
   const [capturingTrick, setCapturingTrick] = useState<AnimatedTrick | null>(null);
+  const [scoreboardOpen, setScoreboardOpen] = useState(false);
   const viewPlayer = state.players.find((player) => player.id === viewPlayerId) ?? state.players[0];
   const opponents = state.players.filter((player) => player.id !== viewPlayer.id);
   const activePlayerName = state.players.find((player) => player.id === state.currentPlayerId)?.displayName ?? 'Nadie';
   const canSwapSeven = rules.canSwapSeven(state, viewPlayer.id).valid;
   const resultText = state.status === GameStatus.Ended ? resultLabel(state) : null;
   const displayedPlays = capturingTrick?.plays ?? state.currentTrick.plays;
+
+  useEffect(() => {
+    if (!scoreboardOpen) {
+      return;
+    }
+
+    function closeOnOutsideClick(event: PointerEvent) {
+      if (!scoreboardDrawerRef.current?.contains(event.target as Node)) {
+        setScoreboardOpen(false);
+      }
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setScoreboardOpen(false);
+      }
+    }
+
+    document.addEventListener('pointerdown', closeOnOutsideClick);
+    document.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      document.removeEventListener('pointerdown', closeOnOutsideClick);
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [scoreboardOpen]);
 
   useLayoutEffect(() => {
     if (!state.lastCompletedTrick || !state.lastTrickWinnerId) {
@@ -252,7 +280,26 @@ export function GameBoard({
         </section>
       </section>
 
-      <Scoreboard state={state} />
+      <div
+        className={`scoreboard-drawer ${scoreboardOpen ? 'scoreboard-drawer--open' : ''}`}
+        ref={scoreboardDrawerRef}
+      >
+        <button
+          type="button"
+          className="scoreboard-tab"
+          aria-controls="scoreboard-drawer-panel"
+          aria-expanded={scoreboardOpen}
+          onClick={() => setScoreboardOpen((open) => !open)}
+        >
+          <span className="scoreboard-tab__arrow" aria-hidden="true">
+            {scoreboardOpen ? '‹' : '›'}
+          </span>
+          <span>Marcador</span>
+        </button>
+        <div id="scoreboard-drawer-panel" className="scoreboard-drawer__panel">
+          <Scoreboard state={state} />
+        </div>
+      </div>
     </main>
   );
 }

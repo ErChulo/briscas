@@ -14,10 +14,11 @@
   --danger: #ffb4a8;
   --panel: rgb(10 29 20 / 84%);
   --panel-border: rgb(255 255 255 / 14%);
-  --card-width: clamp(3.5rem, min(7vw, 13svh), 6.15rem);
-  --card-gap: clamp(0.18rem, 0.7vw, 0.38rem);
-  --board-gap: clamp(0.45rem, 1vw, 0.8rem);
-  --hand-action-gap: clamp(0.85rem, 1.8vw, 1.35rem);
+  --card-width: clamp(7rem, min(10vw, 20svh), 11.5rem);
+  --card-gap: clamp(0.22rem, 0.8vw, 0.55rem);
+  --hand-card-gap: clamp(0.65rem, 1.2vw, 1.1rem);
+  --board-gap: clamp(0.55rem, 1vw, 0.9rem);
+  --hand-action-gap: clamp(1rem, 2vw, 1.55rem);
 }
 
 * {
@@ -194,9 +195,8 @@ select {
 }
 
 .game-shell {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(16rem, 22rem);
-  gap: var(--board-gap);
+  position: relative;
+  overflow-x: hidden;
   min-height: 100vh;
   padding: clamp(0.45rem, 1.4vw, 1rem);
 }
@@ -255,7 +255,7 @@ select {
 
 .table-center {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(9rem, 12rem);
+  grid-template-columns: minmax(0, 1fr) minmax(14rem, 19rem);
   gap: var(--board-gap);
   align-items: center;
 }
@@ -320,20 +320,20 @@ select {
 
 .stock-stack {
   position: relative;
-  width: calc(var(--card-width) * 1.18);
-  height: calc(var(--card-width) * 2.08);
+  width: calc(var(--card-width) * 1.62);
+  height: calc(var(--card-width) * 1.72);
   margin-block: 0.1rem;
 }
 
 .trump-card-face,
 .stock-deck-card {
   position: absolute;
-  left: 50%;
   transform: translateX(-50%);
 }
 
 .trump-card-face {
-  top: calc(var(--card-width) * 0.66);
+  left: calc(50% + var(--card-width) * 0.28);
+  top: calc(var(--card-width) * 0.08);
   z-index: 1;
   filter: saturate(1.08) brightness(1.05);
 }
@@ -343,6 +343,7 @@ select {
 }
 
 .stock-deck-card {
+  left: calc(50% - var(--card-width) * 0.22);
   top: 0;
   z-index: 2;
 }
@@ -386,7 +387,52 @@ select {
 }
 
 .hand-row {
+  gap: var(--hand-card-gap);
   padding-bottom: calc(var(--hand-action-gap) * 0.35);
+}
+
+.scoreboard-drawer {
+  position: fixed;
+  top: 50%;
+  left: 0;
+  z-index: 50;
+  display: flex;
+  align-items: stretch;
+  max-height: min(82vh, 38rem);
+  transform: translate(calc(-100% + 2.75rem), -50%);
+  transition: transform 220ms ease;
+}
+
+.scoreboard-drawer--open {
+  transform: translate(0, -50%);
+}
+
+.scoreboard-drawer__panel {
+  order: 1;
+  width: min(20rem, calc(100vw - 3.2rem));
+}
+
+.scoreboard-tab {
+  order: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  width: 2.75rem;
+  min-height: 10rem;
+  border-radius: 0 1rem 1rem 0;
+  padding: 0.85rem 0.35rem;
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  box-shadow: 0.8rem 0 1.8rem rgb(0 0 0 / 25%);
+}
+
+.scoreboard-tab__arrow {
+  display: inline-block;
+  font-size: 1.25rem;
+  line-height: 1;
 }
 
 .hand-heading {
@@ -405,7 +451,10 @@ select {
   display: grid;
   align-content: start;
   gap: 0.7rem;
+  max-height: min(82vh, 38rem);
+  overflow-y: auto;
   padding: 0.75rem;
+  border-radius: 0 1.5rem 1.5rem 0;
 }
 
 .scoreboard dl {
@@ -472,29 +521,23 @@ img.card-view {
 
 @media (min-width: 1440px) {
   :root {
-    --card-width: clamp(4.25rem, 5vw, 6.8rem);
-    --card-gap: 0.34rem;
-    --board-gap: 0.85rem;
-  }
-
-  .game-shell {
-    grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+    --card-width: clamp(9.5rem, 7.5vw, 13rem);
+    --card-gap: 0.5rem;
+    --hand-card-gap: 1.15rem;
+    --board-gap: 0.9rem;
   }
 
   .table-center {
-    grid-template-columns: minmax(0, 1fr) minmax(11rem, 14rem);
+    grid-template-columns: minmax(0, 1fr) minmax(16rem, 21rem);
   }
 }
 
 @media (max-width: 1280px) {
   :root {
-    --card-width: clamp(3.35rem, min(6vw, 11.5svh), 5.55rem);
-    --card-gap: 0.24rem;
+    --card-width: clamp(7.3rem, min(9vw, 18svh), 9.6rem);
+    --card-gap: 0.34rem;
+    --hand-card-gap: 0.85rem;
     --board-gap: 0.55rem;
-  }
-
-  .game-shell {
-    grid-template-columns: minmax(0, 1fr) minmax(13.5rem, 18rem);
   }
 
   .scoreboard {
@@ -504,18 +547,15 @@ img.card-view {
 
 @media (max-width: 1024px) {
   :root {
-    --card-width: clamp(3.15rem, min(7vw, 10.8svh), 5rem);
-    --card-gap: 0.22rem;
+    --card-width: clamp(6.2rem, min(10vw, 16svh), 8.2rem);
+    --card-gap: 0.28rem;
+    --hand-card-gap: 0.75rem;
     --board-gap: 0.5rem;
     --hand-action-gap: 1rem;
   }
 
-  .game-shell {
-    grid-template-columns: minmax(0, 1fr) minmax(11.5rem, 15rem);
-  }
-
   .table-center {
-    grid-template-columns: minmax(0, 1fr) minmax(8.5rem, 10.5rem);
+    grid-template-columns: minmax(0, 1fr) minmax(12rem, 15rem);
   }
 
   .game-topbar h1 {
@@ -525,8 +565,9 @@ img.card-view {
 
 @media (max-width: 860px) {
   :root {
-    --card-width: clamp(3rem, 19vw, 4.65rem);
-    --card-gap: 0.18rem;
+    --card-width: clamp(5rem, 17vw, 6.8rem);
+    --card-gap: 0.24rem;
+    --hand-card-gap: 0.65rem;
     --board-gap: 0.4rem;
     --hand-action-gap: 0.95rem;
   }
@@ -561,8 +602,9 @@ img.card-view {
 
 @media (max-width: 640px) {
   :root {
-    --card-width: clamp(2.75rem, 17.5vw, 4.2rem);
-    --card-gap: 0.14rem;
+    --card-width: clamp(4.45rem, 24vw, 5.6rem);
+    --card-gap: 0.18rem;
+    --hand-card-gap: 0.5rem;
     --board-gap: 0.32rem;
     --hand-action-gap: 0.9rem;
   }
@@ -594,8 +636,9 @@ img.card-view {
 
 @media (max-width: 430px) {
   :root {
-    --card-width: clamp(2.45rem, 18vw, 3.55rem);
-    --card-gap: 0.12rem;
+    --card-width: clamp(3.65rem, 25vw, 4.65rem);
+    --card-gap: 0.14rem;
+    --hand-card-gap: 0.36rem;
     --board-gap: 0.28rem;
     --hand-action-gap: 0.85rem;
   }
@@ -620,8 +663,9 @@ img.card-view {
 
 @media (max-height: 720px) {
   :root {
-    --card-width: clamp(3rem, 10.5svh, 5rem);
+    --card-width: clamp(4.35rem, 16svh, 7.2rem);
     --card-gap: 0.16rem;
+    --hand-card-gap: 0.5rem;
     --board-gap: 0.35rem;
     --hand-action-gap: 0.85rem;
   }
