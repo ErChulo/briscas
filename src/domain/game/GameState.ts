@@ -4,6 +4,11 @@ import { Player } from './Player';
 import { Trick } from './Trick';
 import { GameStatus, GameVariant, type GameId, type PlayerId } from './Types';
 
+export interface ScoreHistoryEntry {
+  readonly trickIndex: number;
+  readonly scores: Readonly<Record<string, number>>;
+}
+
 /** Complete framework-agnostic game state. */
 export interface GameState {
   readonly gameId: GameId;
@@ -17,8 +22,10 @@ export interface GameState {
   readonly lastCompletedTrick: Trick | null;
   readonly lastTrickWinnerId: PlayerId | null;
   readonly currentPlayerId: PlayerId | null;
+  readonly trumpExchangeUsed: boolean;
   readonly dealerSeatIndex: number;
   readonly scores: Readonly<Record<string, number>>;
+  readonly scoreHistory: readonly ScoreHistoryEntry[];
   readonly roundNumber: number;
   readonly deckSeed: number | null;
   readonly winnerIds: readonly string[];

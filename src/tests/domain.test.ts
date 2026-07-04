@@ -91,6 +91,79 @@ describe('Game engine rules', () => {
     expect(scoring.scoreRound(state).winnerIds).toEqual(['p1']);
   });
 
+  it('only swaps the seven on the current turn without playing it', () => {
+    const engine = new GameEngine();
+    const rules = new BriscasRules();
+    const trumpCard = new Card(Suit.Copa, 1);
+    const sevenOfTrump = new Card(Suit.Copa, 7);
+    const state: GameState = {
+      gameId: 'SWAP7',
+      status: GameStatus.Playing,
+      variant: GameVariant.Standard2P,
+      hostPlayerId: 'p1',
+      players: [
+        new Player('p1', 'Ana', 0, new Hand([sevenOfTrump, new Card(Suit.Oro, 4), new Card(Suit.Basto, 5)])),
+        new Player('p2', 'Luis', 1, new Hand([new Card(Suit.Espada, 2), new Card(Suit.Oro, 2), new Card(Suit.Basto, 2)])),
+      ],
+      deck: new Deck([trumpCard, new Card(Suit.Espada, 1)], trumpCard),
+      trumpCard,
+      currentTrick: new Trick('p1'),
+      lastCompletedTrick: null,
+      lastTrickWinnerId: null,
+      currentPlayerId: 'p1',
+      trumpExchangeUsed: false,
+      dealerSeatIndex: 0,
+      scores: { p1: 0, p2: 0 },
+      scoreHistory: [{ trickIndex: 0, scores: { p1: 0, p2: 0 } }],
+      roundNumber: 1,
+      deckSeed: 10,
+      winnerIds: [],
+      version: 1,
+      createdAt: 1,
+      updatedAt: 2,
+    };
+
+    expect(rules.canSwapSeven({ ...state, currentPlayerId: 'p2' }, 'p1').valid).toBe(false);
+
+    const swapped = engine.swapSeven(state, 'p1', 3);
+    const player = swapped.players.find((candidate) => candidate.id === 'p1')!;
+
+    expect(swapped.currentTrick.plays).toHaveLength(0);
+    expect(swapped.currentPlayerId).toBe('p1');
+    expect(swapped.trumpExchangeUsed).toBe(true);
+    expect(swapped.trumpCard?.id).toBe(sevenOfTrump.id);
+    expect(player.hand.has(trumpCard)).toBe(true);
+    expect(player.hand.has(sevenOfTrump)).toBe(false);
+  });
+
+  it('only offers trump swaps when the visible trump is better', () => {
+    const rules = new BriscasRules();
+    const weakTrump = new Card(Suit.Copa, 6);
+    const state = swapState({ trumpCard: weakTrump, handCard: new Card(Suit.Copa, 7) });
+
+    expect(rules.canSwapTrump(state, 'p1', 7).valid).toBe(false);
+  });
+
+  it('allows the two exchange only before the first play', () => {
+    const engine = new GameEngine();
+    const rules = new BriscasRules();
+    const trumpCard = new Card(Suit.Copa, 7);
+    const twoOfTrump = new Card(Suit.Copa, 2);
+    const state = swapState({ trumpCard, handCard: twoOfTrump });
+
+    expect(rules.canSwapTrump(state, 'p1', 2).valid).toBe(true);
+
+    const swapped = engine.swapTrump(state, 'p1', 2, 3);
+    const player = swapped.players.find((candidate) => candidate.id === 'p1')!;
+
+    expect(swapped.trumpCard?.id).toBe(twoOfTrump.id);
+    expect(swapped.trumpExchangeUsed).toBe(true);
+    expect(player.hand.has(trumpCard)).toBe(true);
+    expect(player.hand.has(twoOfTrump)).toBe(false);
+    expect(rules.canSwapTrump({ ...state, trumpExchangeUsed: true }, 'p1', 2).valid).toBe(false);
+    expect(rules.canSwapTrump({ ...state, currentTrick: new Trick('p1').addPlay('p1', new Card(Suit.Oro, 4)) }, 'p1', 2).valid).toBe(false);
+  });
+
   it('serializes and deserializes game state without losing cards or turn data', () => {
     const state = endedState({ p1: 60, p2: 60 }, true);
     const restored = GameStateMapper.fromData(GameStateMapper.toData(state));
@@ -119,9 +192,40 @@ describe('Game engine rules', () => {
 
     expect(state.status).toBe(GameStatus.Ended);
     expect(Object.values(state.scores).reduce((total, score) => total + score, 0)).toBe(120);
+    expect(state.scoreHistory).toHaveLength(21);
+    expect(state.scoreHistory.at(-1)?.scores).toEqual(state.scores);
     expect(state.winnerIds.length).toBeGreaterThan(0);
   });
 });
+
+function swapState({ trumpCard, handCard }: { readonly trumpCard: Card; readonly handCard: Card }): GameState {
+  return {
+    gameId: 'SWAP',
+    status: GameStatus.Playing,
+    variant: GameVariant.Standard2P,
+    hostPlayerId: 'p1',
+    players: [
+      new Player('p1', 'Ana', 0, new Hand([handCard, new Card(Suit.Oro, 4), new Card(Suit.Basto, 5)])),
+      new Player('p2', 'Luis', 1, new Hand([new Card(Suit.Espada, 2), new Card(Suit.Oro, 2), new Card(Suit.Basto, 2)])),
+    ],
+    deck: new Deck([trumpCard, new Card(Suit.Espada, 1)], trumpCard),
+    trumpCard,
+    currentTrick: new Trick('p1'),
+    lastCompletedTrick: null,
+    lastTrickWinnerId: null,
+    currentPlayerId: 'p1',
+    trumpExchangeUsed: false,
+    dealerSeatIndex: 0,
+    scores: { p1: 0, p2: 0 },
+    scoreHistory: [{ trickIndex: 0, scores: { p1: 0, p2: 0 } }],
+    roundNumber: 1,
+    deckSeed: 10,
+    winnerIds: [],
+    version: 1,
+    createdAt: 1,
+    updatedAt: 2,
+  };
+}
 
 function endedState(scores: Record<string, number>, includeCardInHand: boolean): GameState {
   const trumpCard = new Card(Suit.Copa, 4);
@@ -141,8 +245,10 @@ function endedState(scores: Record<string, number>, includeCardInHand: boolean):
     lastCompletedTrick: null,
     lastTrickWinnerId: null,
     currentPlayerId: null,
+    trumpExchangeUsed: false,
     dealerSeatIndex: 0,
     scores,
+    scoreHistory: [{ trickIndex: 0, scores }],
     roundNumber: 1,
     deckSeed: 10,
     winnerIds: [],

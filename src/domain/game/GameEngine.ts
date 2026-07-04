@@ -11,7 +11,7 @@ import {
   RoomFullError,
 } from '../errors/DomainError';
 import { BriscasRules } from '../rules/BriscasRules';
-import type { RulesEngine } from '../rules/RulesEngine';
+import type { RulesEngine, TrumpSwapRank } from '../rules/RulesEngine';
 import { StandardTrickResolver, type TrickResolver } from '../rules/TrickResolver';
 import { StandardScoringService, type ScoringService } from '../scoring/ScoringService';
 import { Dealer } from './Dealer';
@@ -57,6 +57,8 @@ export class GameEngine {
       this.teamIdForSeat(input.variant, 0),
     );
 
+    const scores = this.initialScores([host]);
+
     return {
       gameId: input.gameId,
       status: GameStatus.Waiting,
@@ -69,8 +71,10 @@ export class GameEngine {
       lastCompletedTrick: null,
       lastTrickWinnerId: null,
       currentPlayerId: null,
+      trumpExchangeUsed: false,
       dealerSeatIndex: 0,
-      scores: this.initialScores([host]),
+      scores,
+      scoreHistory: [],
       roundNumber: 1,
       deckSeed: null,
       winnerIds: [],
@@ -120,6 +124,7 @@ export class GameEngine {
 
     const deal = this.dealer.dealInitialHands(this.sortedPlayers(state.players), seed);
     const firstPlayer = this.playerAfterSeat(deal.players, state.dealerSeatIndex);
+    const scores = this.initialScores(deal.players);
 
     return {
       ...state,
@@ -131,7 +136,9 @@ export class GameEngine {
       lastCompletedTrick: null,
       lastTrickWinnerId: null,
       currentPlayerId: firstPlayer.id,
-      scores: this.initialScores(deal.players),
+      trumpExchangeUsed: false,
+      scores,
+      scoreHistory: [{ trickIndex: 0, scores }],
       deckSeed: seed,
       winnerIds: [],
       version: state.version + 1,
@@ -194,6 +201,7 @@ export class GameEngine {
     let players = state.players.map((player) => (player.id === winnerId ? player.withCapturedTrick() : player));
     const scoreOwnerId = this.scoreOwnerId(winner);
     const scores = new Score(state.scores).add(scoreOwnerId, points).toRecord();
+    const scoreHistory = [...state.scoreHistory, { trickIndex: state.scoreHistory.length, scores }];
     const drawOrder = this.drawOrder(players, winnerId);
 
     for (const drawPlayerId of drawOrder) {
@@ -220,6 +228,7 @@ export class GameEngine {
       lastTrickWinnerId: winnerId,
       currentPlayerId: winnerId,
       scores,
+      scoreHistory,
       version: incrementVersion ? state.version + 1 : state.version,
       updatedAt: now,
     };
@@ -244,30 +253,35 @@ export class GameEngine {
   }
 
   public swapSeven(state: GameState, playerId: PlayerId, now: number): GameState {
-    const validation = this.rules.canSwapSeven(state, playerId);
+    return this.swapTrump(state, playerId, 7, now);
+  }
+
+  public swapTrump(state: GameState, playerId: PlayerId, exchangeRank: TrumpSwapRank, now: number): GameState {
+    const validation = this.rules.canSwapTrump(state, playerId, exchangeRank);
     if (!validation.valid) {
-      throw new IllegalMoveError(validation.reason ?? 'No se puede intercambiar el siete.');
+      throw new IllegalMoveError(validation.reason ?? 'No se puede intercambiar.');
     }
 
     if (!state.trumpCard) {
       throw new InvalidGameStateError('No hay triunfo para intercambiar.');
     }
 
-    const sevenOfTrump = new Card(state.trumpCard.suit, 7);
+    const exchangeCard = new Card(state.trumpCard.suit, exchangeRank);
     const players = state.players.map((player) => {
       if (player.id !== playerId) {
         return player;
       }
 
-      return player.withHand(player.hand.remove(sevenOfTrump).add(state.trumpCard as Card));
+      return player.withHand(player.hand.remove(exchangeCard).add(state.trumpCard as Card));
     });
-    const deck = state.deck.replaceTrumpCard(sevenOfTrump);
+    const deck = state.deck.replaceTrumpCard(exchangeCard);
 
     return {
       ...state,
       players,
       deck,
-      trumpCard: sevenOfTrump,
+      trumpCard: exchangeCard,
+      trumpExchangeUsed: true,
       version: state.version + 1,
       updatedAt: now,
     };
@@ -278,6 +292,7 @@ export class GameEngine {
       (player) =>
         new Player(player.id, player.displayName, player.seatIndex, new Hand(), 0, 0, player.teamId, player.connected),
     );
+    const scores = this.initialScores(players);
 
     return {
       ...state,
@@ -289,7 +304,9 @@ export class GameEngine {
       lastCompletedTrick: null,
       lastTrickWinnerId: null,
       currentPlayerId: null,
-      scores: this.initialScores(players),
+      trumpExchangeUsed: false,
+      scores,
+      scoreHistory: [],
       roundNumber: state.roundNumber + 1,
       dealerSeatIndex: (state.dealerSeatIndex + 1) % Math.max(players.length, 1),
       deckSeed: null,

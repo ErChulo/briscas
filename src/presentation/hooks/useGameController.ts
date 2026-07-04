@@ -12,6 +12,7 @@ import type { Card } from '../../domain/cards/Card';
 import { GameEngine } from '../../domain/game/GameEngine';
 import type { GameState } from '../../domain/game/GameState';
 import { GameStatus, GameVariant } from '../../domain/game/Types';
+import type { TrumpSwapRank } from '../../domain/rules/RulesEngine';
 import { BriscasRules } from '../../domain/rules/BriscasRules';
 import { StandardTrickResolver } from '../../domain/rules/TrickResolver';
 import { isFirebaseConfigured } from '../../infrastructure/config/firebaseConfig';
@@ -188,11 +189,11 @@ export function useGameController() {
     setSoundEnabled((enabled) => !enabled);
   }
 
-  async function swapSeven() {
+  async function swapSeven(exchangeRank: TrumpSwapRank = 7) {
     const gameState = requireState();
     const playerId = currentPlayer.id;
     await run(async () => {
-      await activeUseCases().swapSeven.execute({ gameId: gameState.gameId, playerId });
+      await activeUseCases().swapSeven.execute({ gameId: gameState.gameId, playerId, exchangeRank });
     });
   }
 

@@ -7,6 +7,7 @@ export enum MoveType {
   StartGame = 'START_GAME',
   PlayCard = 'PLAY_CARD',
   SwapSeven = 'SWAP_SEVEN',
+  SwapTrump = 'SWAP_TRUMP',
   ResetGame = 'RESET_GAME',
 }
 

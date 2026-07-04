@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { gsap } from 'gsap';
 import { BriscasRules } from '../../domain/rules/BriscasRules';
+import type { TrumpSwapRank } from '../../domain/rules/RulesEngine';
 import { GameStatus } from '../../domain/game/Types';
 import type { GameState } from '../../domain/game/GameState';
 import type { Player } from '../../domain/game/Player';
@@ -18,7 +19,7 @@ interface GameBoardProps {
   readonly soundEnabled: boolean;
   readonly onPlayCard: (cardId: string) => Promise<void>;
   readonly onToggleSound: () => void;
-  readonly onSwapSeven: () => Promise<void>;
+  readonly onSwapTrump: (exchangeRank: TrumpSwapRank) => Promise<void>;
   readonly onReset: () => Promise<void>;
   readonly onLeave: () => void;
 }
@@ -40,7 +41,7 @@ export function GameBoard({
   soundEnabled,
   onPlayCard,
   onToggleSound,
-  onSwapSeven,
+  onSwapTrump,
   onReset,
   onLeave,
 }: GameBoardProps) {
@@ -49,12 +50,16 @@ export function GameBoard({
   const scoreboardDrawerRef = useRef<HTMLDivElement>(null);
   const animatedPlayKeys = useRef(new Set<string>());
   const animatedCompletedVersion = useRef<number | null>(null);
+  const animatedDealKey = useRef<string | null>(null);
   const [capturingTrick, setCapturingTrick] = useState<AnimatedTrick | null>(null);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
+  const [dismissedScoreStatsKey, setDismissedScoreStatsKey] = useState<string | null>(null);
   const viewPlayer = state.players.find((player) => player.id === viewPlayerId) ?? state.players[0];
   const opponents = state.players.filter((player) => player.id !== viewPlayer.id);
   const activePlayerName = state.players.find((player) => player.id === state.currentPlayerId)?.displayName ?? 'Nadie';
-  const canSwapSeven = rules.canSwapSeven(state, viewPlayer.id).valid;
+  const availableSwapRank = availableTrumpSwapRank(state, viewPlayer.id);
+  const scoreStatsKey = state.status === GameStatus.Ended ? `${state.gameId}:${state.roundNumber}:${state.version}` : null;
+  const scoreStatsOpen = Boolean(scoreStatsKey && dismissedScoreStatsKey !== scoreStatsKey);
   const resultText = state.status === GameStatus.Ended ? resultLabel(state) : null;
   const displayedPlays = capturingTrick?.plays ?? state.currentTrick.plays;
 
@@ -83,6 +88,79 @@ export function GameBoard({
       document.removeEventListener('keydown', closeOnEscape);
     };
   }, [scoreboardOpen]);
+
+  useEffect(() => {
+    if (!scoreStatsOpen) {
+      return;
+    }
+
+    function closeOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape' && scoreStatsKey) {
+        setDismissedScoreStatsKey(scoreStatsKey);
+      }
+    }
+
+    document.addEventListener('keydown', closeOnEscape);
+
+    return () => {
+      document.removeEventListener('keydown', closeOnEscape);
+    };
+  }, [scoreStatsKey, scoreStatsOpen]);
+
+  useLayoutEffect(() => {
+    if (state.status !== GameStatus.Playing || state.deckSeed === null || !tableAreaRef.current) {
+      return;
+    }
+
+    const dealKey = `${state.gameId}:${state.roundNumber}:${state.deckSeed}:${viewPlayer.id}`;
+    if (animatedDealKey.current === dealKey) {
+      return;
+    }
+
+    const stockCard = tableAreaRef.current.querySelector<HTMLElement>('.stock-deck-card');
+    const dealtCards = Array.from(
+      tableAreaRef.current.querySelectorAll<HTMLElement>('.mini-hand > .card-back, .hand-row > .card-view'),
+    );
+    if (!stockCard || dealtCards.length === 0) {
+      return;
+    }
+
+    animatedDealKey.current = dealKey;
+    const stockRect = stockCard.getBoundingClientRect();
+    const stockCenterX = stockRect.left + stockRect.width / 2;
+    const stockCenterY = stockRect.top + stockRect.height / 2;
+    const timeline = gsap.timeline({ delay: 0.12 });
+
+    gsap.set(dealtCards, { transition: 'none' });
+    dealtCards.forEach((element, index) => {
+      const rect = element.getBoundingClientRect();
+      timeline.fromTo(
+        element,
+        {
+          autoAlpha: 0,
+          scale: 0.22,
+          x: stockCenterX - (rect.left + rect.width / 2),
+          y: stockCenterY - (rect.top + rect.height / 2),
+          rotation: index % 2 === 0 ? -18 : 18,
+        },
+        {
+          autoAlpha: 1,
+          scale: 1,
+          x: 0,
+          y: 0,
+          rotation: 0,
+          duration: 0.56,
+          ease: 'power3.out',
+          clearProps: 'transform,opacity,visibility,transition',
+        },
+        index * 0.075,
+      );
+    });
+
+    return () => {
+      timeline.kill();
+    };
+  }, [state.deckSeed, state.gameId, state.roundNumber, state.status, viewPlayer.id]);
 
   useLayoutEffect(() => {
     if (!state.lastCompletedTrick || !state.lastTrickWinnerId) {
@@ -191,6 +269,12 @@ export function GameBoard({
     };
   }, [capturingTrick]);
 
+  function closeScoreStats() {
+    if (scoreStatsKey) {
+      setDismissedScoreStatsKey(scoreStatsKey);
+    }
+  }
+
   return (
     <main className="game-shell">
       <section className="table-area" aria-label="Mesa de juego" ref={tableAreaRef}>
@@ -207,8 +291,15 @@ export function GameBoard({
           </button>
         </header>
 
-        <StatusBanner message={message} tone="error" />
-        <StatusBanner message={resultText} tone="success" />
+        <div className="status-stack" aria-live="polite">
+          <StatusBanner message={message} tone="error" />
+          <StatusBanner message={resultText} tone="success" />
+          {state.status === GameStatus.Ended ? (
+            <button type="button" className="stats-open-button" onClick={() => setDismissedScoreStatsKey(null)}>
+              Ver estadisticas
+            </button>
+          ) : null}
+        </div>
 
         <div className="opponent-row">
           {opponents.map((player) => (
@@ -217,19 +308,41 @@ export function GameBoard({
         </div>
 
         <div className="table-center">
-          <div className="trick-zone" aria-label="Baza actual" ref={trickZoneRef}>
-            {displayedPlays.length === 0 ? <p>La baza está vacía.</p> : null}
-            {capturingTrick ? <p className="trick-winner-label">Baza para {playerName(state, capturingTrick.winnerId)}</p> : null}
-            {displayedPlays.map((play) => (
-              <div
-                key={`${capturingTrick?.version ?? 'current'}-${play.playerId}-${play.card.id}`}
-                className={`played-card ${capturingTrick ? 'played-card--capturing' : ''}`}
-                data-play-key={playKeyFor(play)}
-              >
-                <CardView card={play.card} label={`${playerName(state, play.playerId)} jugó ${play.card.toString()}`} />
-                <span>{playerName(state, play.playerId)}</span>
+          <div className="play-column">
+            <div className="trick-zone" aria-label="Baza actual" ref={trickZoneRef}>
+              {displayedPlays.length === 0 ? <p>La baza está vacía.</p> : null}
+              {capturingTrick ? <p className="trick-winner-label">Baza para {playerName(state, capturingTrick.winnerId)}</p> : null}
+              {displayedPlays.map((play) => (
+                <div
+                  key={`${capturingTrick?.version ?? 'current'}-${play.playerId}-${play.card.id}`}
+                  className={`played-card ${capturingTrick ? 'played-card--capturing' : ''}`}
+                  data-play-key={playKeyFor(play)}
+                >
+                  <CardView card={play.card} label={`${playerName(state, play.playerId)} jugó ${play.card.toString()}`} />
+                  <span>{playerName(state, play.playerId)}</span>
+                </div>
+              ))}
+            </div>
+
+            <section className="hand-panel panel" aria-label={`Mano de ${viewPlayer.displayName}`} data-player-target={viewPlayer.id}>
+              <div className="hand-heading">
+                <h2>{viewPlayer.displayName}</h2>
+                <p>{state.currentPlayerId === viewPlayer.id ? 'Puedes jugar una carta.' : 'Espera tu turno.'}</p>
               </div>
-            ))}
+              <div className="hand-row">
+                {viewPlayer.hand.toArray().map((card) => {
+                  const validation = rules.canPlayCard(state, viewPlayer.id, card);
+                  return (
+                    <CardView
+                      key={card.id}
+                      card={card}
+                      disabled={busy || Boolean(capturingTrick) || !validation.valid}
+                      onClick={() => void onPlayCard(card.id)}
+                    />
+                  );
+                })}
+              </div>
+            </section>
           </div>
 
           <div className="stock-zone panel" aria-label="Mazo y triunfo">
@@ -252,40 +365,42 @@ export function GameBoard({
             ) : (
               <p>Sin triunfo visible</p>
             )}
+            <div className="stock-actions" aria-label="Acciones de partida">
+              {availableSwapRank ? (
+                <button
+                  type="button"
+                  className="swap-action"
+                  disabled={busy || Boolean(capturingTrick)}
+                  onClick={() => void onSwapTrump(availableSwapRank)}
+                >
+                  {swapButtonLabel(availableSwapRank)}
+                </button>
+              ) : null}
+              <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={() => void onReset()}>
+                Nueva ronda
+              </button>
+              <button type="button" className="secondary" onClick={onLeave}>
+                Menú
+              </button>
+            </div>
           </div>
         </div>
 
-        <section className="hand-panel panel" aria-label={`Mano de ${viewPlayer.displayName}`} data-player-target={viewPlayer.id}>
-          <div className="hand-heading">
-            <h2>{viewPlayer.displayName}</h2>
-            <p>{state.currentPlayerId === viewPlayer.id ? 'Puedes jugar una carta.' : 'Espera tu turno.'}</p>
-          </div>
-          <div className="hand-row">
-            {viewPlayer.hand.toArray().map((card) => {
-              const validation = rules.canPlayCard(state, viewPlayer.id, card);
-              return (
-                <CardView
-                  key={card.id}
-                  card={card}
-                  disabled={busy || Boolean(capturingTrick) || !validation.valid}
-                  onClick={() => void onPlayCard(card.id)}
-                />
-              );
-            })}
-          </div>
-          <div className="button-grid compact">
-            <button type="button" disabled={busy || Boolean(capturingTrick) || !canSwapSeven} onClick={() => void onSwapSeven()}>
-              Intercambiar siete
-            </button>
-            <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={() => void onReset()}>
-              Nueva ronda
-            </button>
-            <button type="button" className="secondary" onClick={onLeave}>
-              Menú
-            </button>
-          </div>
-        </section>
       </section>
+
+      {state.status === GameStatus.Ended && scoreStatsOpen ? (
+        <div
+          className="score-modal-backdrop"
+          onPointerDown={(event) => event.target === event.currentTarget && closeScoreStats()}
+        >
+          <div className="score-modal panel" role="dialog" aria-modal="true" aria-labelledby="score-evolution-title">
+            <button type="button" className="score-modal__close" onClick={closeScoreStats} aria-label="Cerrar estadisticas">
+              Cerrar
+            </button>
+            <ScoreEvolutionChart state={state} />
+          </div>
+        </div>
+      ) : null}
 
       <div
         className={`scoreboard-drawer ${scoreboardOpen ? 'scoreboard-drawer--open' : ''}`}
@@ -309,6 +424,176 @@ export function GameBoard({
       </div>
     </main>
   );
+}
+
+function ScoreEvolutionChart({ state }: { readonly state: GameState }) {
+  const history = state.scoreHistory.length > 0 ? state.scoreHistory : [{ trickIndex: 0, scores: state.scores }];
+  const ownerIds = scoreOwnerIds(state, history);
+  const maxIndex = Math.max(...history.map((entry) => entry.trickIndex), 1);
+  const maxScore = Math.max(120, ...history.flatMap((entry) => ownerIds.map((ownerId) => entry.scores[ownerId] ?? 0)));
+  const bounds = { left: 58, top: 24, width: 560, height: 220 };
+  const yTicks = [0, 30, 60, 90, 120].filter((tick) => tick <= maxScore);
+  const finalEntry = history.at(-1);
+  const labelYs = adjustedLabelYs(
+    ownerIds.map((ownerId) => ({ ownerId, y: yFor(finalEntry?.scores[ownerId] ?? 0) })),
+    bounds.top + 10,
+    bounds.top + bounds.height - 10,
+    20,
+  );
+
+  function xFor(trickIndex: number): number {
+    return bounds.left + (trickIndex / maxIndex) * bounds.width;
+  }
+
+  function yFor(score: number): number {
+    return bounds.top + bounds.height - (score / maxScore) * bounds.height;
+  }
+
+  function pathFor(ownerId: string): string {
+    return history
+      .map((entry, index) => `${index === 0 ? 'M' : 'L'} ${xFor(entry.trickIndex).toFixed(2)} ${yFor(entry.scores[ownerId] ?? 0).toFixed(2)}`)
+      .join(' ');
+  }
+
+  return (
+    <section className="score-evolution" aria-labelledby="score-evolution-title">
+      <div className="score-evolution__heading">
+        <div>
+          <p className="eyebrow">Estadisticas</p>
+          <h2 id="score-evolution-title">Evolucion acumulada</h2>
+        </div>
+        <p>{Math.max(history.length - 1, 0)} bazas jugadas</p>
+      </div>
+      <svg className="score-chart" viewBox="0 0 820 320" role="img" aria-label="Grafica de puntuacion acumulada por baza">
+        <rect width="820" height="320" rx="20" fill="#000" />
+        {yTicks.map((tick) => {
+          const y = yFor(tick);
+          return (
+            <g key={tick}>
+              <line x1={bounds.left} y1={y} x2={bounds.left + bounds.width} y2={y} className="score-chart__grid" />
+              <text x={bounds.left - 12} y={y + 4} className="score-chart__tick" textAnchor="end">
+                {tick}
+              </text>
+            </g>
+          );
+        })}
+        <line x1={bounds.left} y1={bounds.top} x2={bounds.left} y2={bounds.top + bounds.height} className="score-chart__axis" />
+        <line
+          x1={bounds.left}
+          y1={bounds.top + bounds.height}
+          x2={bounds.left + bounds.width}
+          y2={bounds.top + bounds.height}
+          className="score-chart__axis"
+        />
+        <text x={bounds.left + bounds.width / 2} y="292" className="score-chart__axis-label" textAnchor="middle">
+          Baza
+        </text>
+        <text x="18" y={bounds.top + bounds.height / 2} className="score-chart__axis-label" textAnchor="middle" transform={`rotate(-90 18 ${bounds.top + bounds.height / 2})`}>
+          Puntos acumulados
+        </text>
+        {ownerIds.map((ownerId, index) => {
+          const color = chartColor(index);
+          const lastScore = history.at(-1)?.scores[ownerId] ?? 0;
+          const endpointY = yFor(lastScore);
+          const labelY = labelYs[ownerId] ?? endpointY;
+          return (
+            <g key={ownerId}>
+              <path d={pathFor(ownerId)} fill="none" stroke={color} className="score-chart__line" />
+              {history.map((entry) => (
+                <circle key={`${ownerId}-${entry.trickIndex}`} cx={xFor(entry.trickIndex)} cy={yFor(entry.scores[ownerId] ?? 0)} r="3.5" fill={color} />
+              ))}
+              <line
+                x1={bounds.left + bounds.width}
+                y1={endpointY}
+                x2={bounds.left + bounds.width + 16}
+                y2={labelY}
+                stroke={color}
+                className="score-chart__leader"
+              />
+              <text x={bounds.left + bounds.width + 22} y={labelY + 4} fill={color} className="score-chart__label">
+                {scoreOwnerLabel(state, ownerId)} {lastScore}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    </section>
+  );
+}
+
+function adjustedLabelYs(
+  labels: readonly { readonly ownerId: string; readonly y: number }[],
+  minY: number,
+  maxY: number,
+  minGap: number,
+): Readonly<Record<string, number>> {
+  const positioned = [...labels]
+    .sort((left, right) => left.y - right.y)
+    .map((label) => ({ ...label, y: clamp(label.y, minY, maxY) }));
+
+  for (let index = 1; index < positioned.length; index += 1) {
+    positioned[index].y = Math.max(positioned[index].y, positioned[index - 1].y + minGap);
+  }
+
+  const overflow = positioned.at(-1) ? positioned[positioned.length - 1].y - maxY : 0;
+  if (overflow > 0) {
+    positioned.forEach((label) => {
+      label.y -= overflow;
+    });
+  }
+
+  if (positioned[0]?.y < minY) {
+    const shift = minY - positioned[0].y;
+    positioned.forEach((label) => {
+      label.y += shift;
+    });
+  }
+
+  for (let index = 1; index < positioned.length; index += 1) {
+    positioned[index].y = Math.max(positioned[index].y, positioned[index - 1].y + minGap);
+  }
+
+  return Object.fromEntries(positioned.map((label) => [label.ownerId, label.y]));
+}
+
+function clamp(value: number, min: number, max: number): number {
+  return Math.min(Math.max(value, min), max);
+}
+
+function scoreOwnerIds(state: GameState, history: readonly { readonly scores: Readonly<Record<string, number>> }[]): readonly string[] {
+  const ids = new Set<string>();
+  Object.keys(state.scores).forEach((ownerId) => ids.add(ownerId));
+  history.forEach((entry) => Object.keys(entry.scores).forEach((ownerId) => ids.add(ownerId)));
+  return [...ids];
+}
+
+function chartColor(index: number): string {
+  return ['#f5c542', '#5eead4', '#a78bfa', '#fb7185'][index % 4];
+}
+
+function scoreOwnerLabel(state: GameState, ownerId: string): string {
+  const teamPlayers = state.players.filter((player) => player.teamId === ownerId);
+  if (teamPlayers.length > 0) {
+    return `Equipo ${ownerId.endsWith('0') ? 'A' : 'B'}`;
+  }
+
+  return playerName(state, ownerId);
+}
+
+function availableTrumpSwapRank(state: GameState, playerId: string): TrumpSwapRank | null {
+  if (rules.canSwapTrump(state, playerId, 7).valid) {
+    return 7;
+  }
+
+  if (rules.canSwapTrump(state, playerId, 2).valid) {
+    return 2;
+  }
+
+  return null;
+}
+
+function swapButtonLabel(exchangeRank: TrumpSwapRank): string {
+  return exchangeRank === 7 ? '¿Intercambiar siete?' : '¿Intercambiar dos?';
 }
 
 function OpponentHand({ player, active }: { readonly player: Player; readonly active: boolean }) {

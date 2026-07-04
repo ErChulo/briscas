@@ -1,7 +1,7 @@
 import { Card } from '../cards/Card';
 import { GameStatus, GameVariant, type PlayerId } from '../game/Types';
 import type { GameState } from '../game/GameState';
-import type { RulesEngine } from './RulesEngine';
+import type { RulesEngine, TrumpSwapRank } from './RulesEngine';
 import { invalidResult, validResult, type ValidationResult } from './ValidationResult';
 
 /** Standard Briscas rule set with replaceable variant behavior. */
@@ -63,27 +63,51 @@ export class BriscasRules implements RulesEngine {
     return validResult;
   }
 
-  public canSwapSeven(state: GameState, playerId: PlayerId): ValidationResult {
+  public canSwapTrump(state: GameState, playerId: PlayerId, exchangeRank: TrumpSwapRank): ValidationResult {
     if (state.variant === GameVariant.NoSwap) {
-      return invalidResult('El intercambio del siete está desactivado.');
+      return invalidResult('El intercambio está desactivado.');
     }
 
     if (state.status !== GameStatus.Playing) {
       return invalidResult('La partida no está activa.');
     }
 
-    if (!state.trumpCard || !state.trumpCard.suit || state.deck.isEmpty) {
-      return invalidResult('No hay carta de triunfo disponible para intercambiar.');
+    if (state.currentPlayerId !== playerId) {
+      return invalidResult('Solo puedes intercambiar antes de jugar en tu turno.');
     }
 
-    const player = state.players.find((candidate) => candidate.id === playerId);
-    const sevenOfTrump = new Card(state.trumpCard.suit, 7);
+    if (state.currentTrick.hasPlayed(playerId)) {
+      return invalidResult('Ya jugaste una carta en esta baza.');
+    }
 
-    if (!player?.hand.has(sevenOfTrump)) {
-      return invalidResult('Necesitas tener el siete del palo triunfo.');
+    if (state.trumpExchangeUsed) {
+      return invalidResult('El intercambio ya se usó en esta ronda.');
+    }
+
+    if (exchangeRank === 2 && !this.isInitialTrick(state)) {
+      return invalidResult('El intercambio del dos solo está disponible al inicio.');
+    }
+
+    if (!state.trumpCard || !state.trumpCard.suit || state.deck.isEmpty) {
+      return invalidResult('No hay triunfo disponible para intercambiar.');
+    }
+
+    const exchangeCard = new Card(state.trumpCard.suit, exchangeRank);
+    const player = state.players.find((candidate) => candidate.id === playerId);
+
+    if (!player?.hand.has(exchangeCard)) {
+      return invalidResult(`Necesitas tener el ${exchangeRank === 7 ? 'siete' : 'dos'} del palo de triunfo.`);
+    }
+
+    if (state.trumpCard.captureStrength >= exchangeCard.captureStrength) {
+      return invalidResult('El intercambio solo está disponible si el triunfo visible es mejor.');
     }
 
     return validResult;
+  }
+
+  public canSwapSeven(state: GameState, playerId: PlayerId): ValidationResult {
+    return this.canSwapTrump(state, playerId, 7);
   }
 
   public isGameOver(state: GameState): boolean {
@@ -92,5 +116,9 @@ export class BriscasRules implements RulesEngine {
 
   public maxPlayers(state: GameState): number {
     return state.variant === GameVariant.Standard4P ? 4 : 2;
+  }
+
+  private isInitialTrick(state: GameState): boolean {
+    return state.lastCompletedTrick === null && state.currentTrick.plays.length === 0;
   }
 }

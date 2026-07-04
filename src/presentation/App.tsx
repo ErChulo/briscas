@@ -43,7 +43,7 @@ export function App() {
       soundEnabled={controller.soundEnabled}
       onPlayCard={controller.playCard}
       onToggleSound={controller.toggleSound}
-      onSwapSeven={controller.swapSeven}
+      onSwapTrump={controller.swapSeven}
       onReset={controller.resetGame}
       onLeave={controller.leaveGame}
     />

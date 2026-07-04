@@ -3,7 +3,7 @@ import { Deck } from '../../domain/cards/Deck';
 import { Hand } from '../../domain/cards/Hand';
 import type { Rank } from '../../domain/cards/Rank';
 import type { Suit } from '../../domain/cards/Suit';
-import type { GameState } from '../../domain/game/GameState';
+import type { GameState, ScoreHistoryEntry } from '../../domain/game/GameState';
 import type { Move, MoveType } from '../../domain/game/Move';
 import { Player } from '../../domain/game/Player';
 import { Trick } from '../../domain/game/Trick';
@@ -35,6 +35,11 @@ export interface SerializedDeck {
   readonly trumpCard: SerializedCard | null;
 }
 
+export interface SerializedScoreHistoryEntry {
+  readonly trickIndex: number;
+  readonly scores: Readonly<Record<string, number>>;
+}
+
 export interface SerializedGameState {
   readonly gameId: string;
   readonly status: GameStatus;
@@ -49,8 +54,10 @@ export interface SerializedGameState {
   readonly lastCompletedTrick: SerializedTrick | null;
   readonly lastTrickWinnerId: string | null;
   readonly currentPlayerId: string | null;
+  readonly trumpExchangeUsed: boolean;
   readonly dealerSeatIndex: number;
   readonly scores: Readonly<Record<string, number>>;
+  readonly scoreHistory: readonly SerializedScoreHistoryEntry[];
   readonly roundNumber: number;
   readonly deckSeed: number | null;
   readonly deckCount: number;
@@ -136,8 +143,10 @@ export class GameStateMapper {
       lastCompletedTrick: state.lastCompletedTrick ? GameStateMapper.trickToData(state.lastCompletedTrick) : null,
       lastTrickWinnerId: state.lastTrickWinnerId,
       currentPlayerId: state.currentPlayerId,
+      trumpExchangeUsed: state.trumpExchangeUsed,
       dealerSeatIndex: state.dealerSeatIndex,
       scores: state.scores,
+      scoreHistory: state.scoreHistory.map(GameStateMapper.scoreHistoryToData),
       roundNumber: state.roundNumber,
       deckSeed: state.deckSeed,
       deckCount: state.deck.count,
@@ -163,8 +172,10 @@ export class GameStateMapper {
       lastCompletedTrick: data.lastCompletedTrick ? GameStateMapper.trickFromData(data.lastCompletedTrick) : null,
       lastTrickWinnerId: data.lastTrickWinnerId,
       currentPlayerId: data.currentPlayerId,
+      trumpExchangeUsed: data.trumpExchangeUsed ?? false,
       dealerSeatIndex: data.dealerSeatIndex,
       scores: data.scores,
+      scoreHistory: (data.scoreHistory ?? []).map(GameStateMapper.scoreHistoryFromData),
       roundNumber: data.roundNumber,
       deckSeed: data.deckSeed,
       winnerIds: data.winnerIds,
@@ -182,6 +193,14 @@ export class GameStateMapper {
         card: GameStateMapper.cardToData(play.card),
       })),
     };
+  }
+
+  private static scoreHistoryToData(entry: ScoreHistoryEntry): SerializedScoreHistoryEntry {
+    return { trickIndex: entry.trickIndex, scores: entry.scores };
+  }
+
+  private static scoreHistoryFromData(entry: SerializedScoreHistoryEntry): ScoreHistoryEntry {
+    return { trickIndex: entry.trickIndex, scores: entry.scores };
   }
 
   private static trickFromData(data: SerializedTrick): Trick {
