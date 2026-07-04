@@ -214,7 +214,7 @@ export class GameEngine {
       ...state,
       players,
       deck,
-      trumpCard: deck.trumpCard,
+      trumpCard: deck.trumpCard ?? state.trumpCard,
       currentTrick: new Trick(winnerId),
       lastCompletedTrick: state.currentTrick,
       lastTrickWinnerId: winnerId,

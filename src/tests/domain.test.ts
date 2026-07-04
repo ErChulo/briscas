@@ -99,6 +99,28 @@ describe('Game engine rules', () => {
     expect(restored.players[0].hand.toArray()[0].id).toBe('oro-1');
     expect(restored.scores).toEqual(state.scores);
   });
+
+  it('keeps the trump suit available through the final trick', () => {
+    const engine = new GameEngine();
+    let state = engine.createGame({
+      gameId: 'FINAL',
+      hostPlayerId: 'p1',
+      hostDisplayName: 'Ana',
+      variant: GameVariant.Standard2P,
+      now: 1,
+    });
+    state = engine.joinGame(state, { playerId: 'p2', displayName: 'Luis' }, 2);
+    state = engine.startGame(state, 'p1', 2026, 3);
+
+    for (let turn = 0; turn < 80 && state.status !== GameStatus.Ended; turn += 1) {
+      const currentPlayer = state.players.find((player) => player.id === state.currentPlayerId)!;
+      state = engine.playCard(state, currentPlayer.id, currentPlayer.hand.toArray()[0], turn + 4);
+    }
+
+    expect(state.status).toBe(GameStatus.Ended);
+    expect(Object.values(state.scores).reduce((total, score) => total + score, 0)).toBe(120);
+    expect(state.winnerIds.length).toBeGreaterThan(0);
+  });
 });
 
 function endedState(scores: Record<string, number>, includeCardInHand: boolean): GameState {

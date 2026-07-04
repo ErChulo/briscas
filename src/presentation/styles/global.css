@@ -17,6 +17,7 @@
   --card-width: clamp(3.5rem, min(7vw, 13svh), 6.15rem);
   --card-gap: clamp(0.18rem, 0.7vw, 0.38rem);
   --board-gap: clamp(0.45rem, 1vw, 0.8rem);
+  --hand-action-gap: clamp(0.85rem, 1.8vw, 1.35rem);
 }
 
 * {
@@ -252,10 +253,6 @@ select {
   justify-content: center;
 }
 
-.mini-hand {
-  perspective: 800px;
-}
-
 .table-center {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(9rem, 12rem);
@@ -308,10 +305,67 @@ select {
 
 .stock-zone {
   display: grid;
-  gap: var(--card-gap);
+  gap: 0.5rem;
   justify-items: center;
-  padding: 0.7rem;
+  align-self: stretch;
+  padding: 0.8rem;
   text-align: center;
+}
+
+.stock-counter {
+  display: grid;
+  justify-items: center;
+  line-height: 1.05;
+}
+
+.stock-stack {
+  position: relative;
+  width: calc(var(--card-width) * 1.18);
+  height: calc(var(--card-width) * 2.08);
+  margin-block: 0.1rem;
+}
+
+.trump-card-face,
+.stock-deck-card {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.trump-card-face {
+  top: calc(var(--card-width) * 0.66);
+  z-index: 1;
+  filter: saturate(1.08) brightness(1.05);
+}
+
+.trump-card-face--ghost {
+  opacity: 0.78;
+}
+
+.stock-deck-card {
+  top: 0;
+  z-index: 2;
+}
+
+.stock-deck-card--empty {
+  display: grid;
+  place-items: center;
+  width: var(--card-width);
+  aspect-ratio: 2 / 3.15;
+  border: 1px dashed rgb(255 255 255 / 28%);
+  border-radius: 0.45rem;
+  color: #f4e5ad;
+  background: rgb(0 0 0 / 18%);
+  font-size: 0.78rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.trump-label {
+  margin: 0;
+  color: #f3e8b8;
+  font-size: 0.82rem;
+  font-weight: 800;
 }
 
 .stock-count {
@@ -325,6 +379,14 @@ select {
   display: grid;
   gap: var(--card-gap);
   padding: 0.7rem;
+}
+
+.hand-panel .button-grid.compact {
+  margin-top: var(--hand-action-gap);
+}
+
+.hand-row {
+  padding-bottom: calc(var(--hand-action-gap) * 0.35);
 }
 
 .hand-heading {
@@ -401,9 +463,6 @@ img.card-view {
 .card-back {
   display: block;
   border: 0.22rem solid #f8e4b2;
-  backface-visibility: hidden;
-  transform-style: preserve-3d;
-  will-change: transform;
   background:
     linear-gradient(45deg, transparent 35%, rgb(255 255 255 / 22%) 35% 42%, transparent 42%),
     radial-gradient(circle, transparent 28%, #8b1a1a 29% 34%, transparent 35%),
@@ -411,11 +470,65 @@ img.card-view {
   box-shadow: 0 0.6rem 1.5rem rgb(0 0 0 / 25%);
 }
 
+@media (min-width: 1440px) {
+  :root {
+    --card-width: clamp(4.25rem, 5vw, 6.8rem);
+    --card-gap: 0.34rem;
+    --board-gap: 0.85rem;
+  }
+
+  .game-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(18rem, 24rem);
+  }
+
+  .table-center {
+    grid-template-columns: minmax(0, 1fr) minmax(11rem, 14rem);
+  }
+}
+
+@media (max-width: 1280px) {
+  :root {
+    --card-width: clamp(3.35rem, min(6vw, 11.5svh), 5.55rem);
+    --card-gap: 0.24rem;
+    --board-gap: 0.55rem;
+  }
+
+  .game-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(13.5rem, 18rem);
+  }
+
+  .scoreboard {
+    font-size: 0.92rem;
+  }
+}
+
+@media (max-width: 1024px) {
+  :root {
+    --card-width: clamp(3.15rem, min(7vw, 10.8svh), 5rem);
+    --card-gap: 0.22rem;
+    --board-gap: 0.5rem;
+    --hand-action-gap: 1rem;
+  }
+
+  .game-shell {
+    grid-template-columns: minmax(0, 1fr) minmax(11.5rem, 15rem);
+  }
+
+  .table-center {
+    grid-template-columns: minmax(0, 1fr) minmax(8.5rem, 10.5rem);
+  }
+
+  .game-topbar h1 {
+    font-size: clamp(1.35rem, 3vw, 2.25rem);
+  }
+}
+
 @media (max-width: 860px) {
   :root {
     --card-width: clamp(3rem, 19vw, 4.65rem);
     --card-gap: 0.18rem;
     --board-gap: 0.4rem;
+    --hand-action-gap: 0.95rem;
   }
 
   .menu-shell,
@@ -446,11 +559,71 @@ img.card-view {
   }
 }
 
+@media (max-width: 640px) {
+  :root {
+    --card-width: clamp(2.75rem, 17.5vw, 4.2rem);
+    --card-gap: 0.14rem;
+    --board-gap: 0.32rem;
+    --hand-action-gap: 0.9rem;
+  }
+
+  .table-area {
+    border-radius: 1rem;
+  }
+
+  .opponent-row {
+    grid-template-columns: 1fr;
+  }
+
+  .stock-zone {
+    grid-template-columns: auto 1fr;
+    align-items: center;
+    text-align: left;
+  }
+
+  .stock-stack {
+    justify-self: center;
+  }
+
+  .trump-label {
+    grid-column: 1 / -1;
+    justify-self: center;
+    text-align: center;
+  }
+}
+
+@media (max-width: 430px) {
+  :root {
+    --card-width: clamp(2.45rem, 18vw, 3.55rem);
+    --card-gap: 0.12rem;
+    --board-gap: 0.28rem;
+    --hand-action-gap: 0.85rem;
+  }
+
+  .game-shell {
+    padding: 0.25rem;
+  }
+
+  .table-area,
+  .hand-panel,
+  .scoreboard,
+  .stock-zone {
+    padding: 0.45rem;
+  }
+
+  .played-card span,
+  .trump-label,
+  .stock-zone small {
+    font-size: 0.72rem;
+  }
+}
+
 @media (max-height: 720px) {
   :root {
     --card-width: clamp(3rem, 10.5svh, 5rem);
     --card-gap: 0.16rem;
     --board-gap: 0.35rem;
+    --hand-action-gap: 0.85rem;
   }
 }
 

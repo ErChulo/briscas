@@ -38,7 +38,7 @@ export function GameBoard({
   onPlayCard,
   onSwapSeven,
   onReset,
-	 onLeave,
+  onLeave,
 }: GameBoardProps) {
   const tableAreaRef = useRef<HTMLElement>(null);
   const trickZoneRef = useRef<HTMLDivElement>(null);
@@ -51,7 +51,6 @@ export function GameBoard({
   const canSwapSeven = rules.canSwapSeven(state, viewPlayer.id).valid;
   const resultText = state.status === GameStatus.Ended ? resultLabel(state) : null;
   const displayedPlays = capturingTrick?.plays ?? state.currentTrick.plays;
-  const opponentHandSignature = opponents.map((player) => `${player.id}:${player.hand.size}`).join('|');
 
   useLayoutEffect(() => {
     if (!state.lastCompletedTrick || !state.lastTrickWinnerId) {
@@ -160,31 +159,6 @@ export function GameBoard({
     };
   }, [capturingTrick]);
 
-  useLayoutEffect(() => {
-    if (!tableAreaRef.current) {
-      return;
-    }
-
-    const cardBacks = Array.from(tableAreaRef.current.querySelectorAll<HTMLElement>('.mini-hand .card-back'));
-    if (cardBacks.length === 0) {
-      return;
-    }
-
-    const tween = gsap.to(cardBacks, {
-      rotationY: 180,
-      duration: 2.35,
-      ease: 'sine.inOut',
-      repeat: -1,
-      yoyo: true,
-      stagger: 0.12,
-      transformPerspective: 700,
-    });
-
-    return () => {
-      tween.kill();
-    };
-  }, [opponentHandSignature]);
-
   return (
     <main className="game-shell">
       <section className="table-area" aria-label="Mesa de juego" ref={tableAreaRef}>
@@ -224,15 +198,22 @@ export function GameBoard({
           </div>
 
           <div className="stock-zone panel" aria-label="Mazo y triunfo">
-            <div>
+            <div className="stock-counter">
               <span className="stock-count">{state.deck.count}</span>
               <small>cartas en mazo</small>
             </div>
-            {state.trumpCard ? (
-              <div>
-                <p>Triunfo</p>
-                <CardView card={state.trumpCard} />
+            <div className="stock-stack" aria-label="Mazo sobre carta de triunfo">
+              {state.trumpCard ? (
+                <div className={`trump-card-face ${state.deck.isEmpty ? 'trump-card-face--ghost' : ''}`}>
+                  <CardView card={state.trumpCard} label={`Triunfo: ${state.trumpCard.toString()}`} />
+                </div>
+              ) : null}
+              <div className={`stock-deck-card ${state.deck.isEmpty ? 'stock-deck-card--empty' : ''}`}>
+                {state.deck.isEmpty ? <span>Mazo vacío</span> : <CardView hidden label="Mazo de cartas" />}
               </div>
+            </div>
+            {state.trumpCard ? (
+              <p className="trump-label">Triunfo: {state.trumpCard.toString()}</p>
             ) : (
               <p>Sin triunfo visible</p>
             )}
