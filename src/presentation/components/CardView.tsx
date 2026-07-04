@@ -1,4 +1,5 @@
 import type { Card } from '../../domain/cards/Card';
+import coquiCardBack from '../../assets/coqui-negro.jpg';
 import { CardImageRegistry } from '../assets/CardImageRegistry';
 
 interface CardViewProps {
@@ -15,7 +16,11 @@ export function CardView({ card, hidden = false, disabled = false, label, onClic
     .join(' ');
 
   if (hidden || !card) {
-    return <div className="card-back" aria-label={label ?? 'Carta oculta'} />;
+    return (
+      <div className="card-back" aria-label={label ?? 'Carta oculta'}>
+        <img src={coquiCardBack} alt="" />
+      </div>
+    );
   }
 
   if (!onClick) {

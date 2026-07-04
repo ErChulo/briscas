@@ -338,7 +338,7 @@ select {
 }
 
 .trump-card-face {
-  left: 64%;
+  left: 34%;
   top: calc(var(--card-width) * 0.34);
   transform: translateX(-50%) rotate(90deg);
   transform-origin: 50% 50%;
@@ -351,7 +351,7 @@ select {
 }
 
 .stock-deck-card {
-  left: 42%;
+  left: 58%;
   top: calc(var(--card-width) * 0.04);
   transform: translateX(-50%);
   z-index: 2;
@@ -520,13 +520,36 @@ img.card-view {
 }
 
 .card-back {
-  display: block;
-  border: 0.22rem solid #f8e4b2;
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  border: 0.16rem solid #111;
   background:
-    linear-gradient(45deg, transparent 35%, rgb(255 255 255 / 22%) 35% 42%, transparent 42%),
-    radial-gradient(circle, transparent 28%, #8b1a1a 29% 34%, transparent 35%),
-    repeating-linear-gradient(135deg, #8b1a1a 0 0.7rem, #651111 0.7rem 1.4rem);
+    linear-gradient(135deg, rgb(255 255 255 / 24%), transparent 18%, transparent 68%, rgb(255 255 255 / 12%)),
+    radial-gradient(circle at 30% 18%, rgb(255 255 255 / 18%), transparent 32%),
+    #000;
   box-shadow: 0 0.6rem 1.5rem rgb(0 0 0 / 25%);
+}
+
+.card-back::after {
+  position: absolute;
+  inset: 0.38rem;
+  z-index: 2;
+  border-radius: 50%;
+  background: radial-gradient(circle at 30% 20%, rgb(255 255 255 / 18%), transparent 24%, transparent 72%, rgb(255 255 255 / 10%));
+  content: "";
+  pointer-events: none;
+}
+
+.card-back img {
+  position: relative;
+  z-index: 1;
+  width: 92%;
+  aspect-ratio: 1;
+  border-radius: 50%;
+  object-fit: cover;
+  filter: saturate(1.05) contrast(1.05);
 }
 
 @media (min-width: 1440px) {
