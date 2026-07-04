@@ -11,6 +11,11 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/games/$(gameId)/players/$(request.auth.uid));
     }
 
+    function isWaitingGame(gameId) {
+      return signedIn()
+        && get(/databases/$(database)/documents/games/$(gameId)).data.status == 'waiting';
+    }
+
     function willBeParticipant() {
       return signedIn()
         && request.resource.data.playerIds is list
@@ -22,13 +27,14 @@ service cloud.firestore {
     }
 
     match /games/{gameId} {
-      allow read: if isParticipant(gameId);
+      allow read: if isParticipant(gameId)
+        || (signedIn() && resource.data.status == 'waiting');
       allow create: if signedIn() && request.resource.data.hostPlayerId == request.auth.uid;
       allow update: if isParticipant(gameId)
         || (resource.data.status == 'waiting' && request.resource.data.status == 'waiting' && willBeParticipant());
 
       match /players/{playerId} {
-        allow read: if isParticipant(gameId);
+        allow read: if isParticipant(gameId) || isWaitingGame(gameId);
         allow create: if signedIn() && playerId == request.auth.uid;
         allow update: if signedIn() && (playerId == request.auth.uid || isParticipant(gameId));
       }
