@@ -70,13 +70,14 @@ export function useGameController() {
       return;
     }
 
+    const delay = state.lastCompletedTrick ? 1400 : 650;
     const timer = window.setTimeout(() => {
       void localContext.useCases.playCard
         .execute({ gameId: state.gameId, playerId: botPlayerId, cardId })
         .catch((error) => {
           setMessage(error instanceof Error ? error.message : 'La IA no pudo jugar.');
         });
-    }, 550);
+    }, delay);
 
     return () => window.clearTimeout(timer);
   }, [localContext.useCases.playCard, mode, state]);

@@ -14,6 +14,8 @@ export interface GameState {
   readonly deck: Deck;
   readonly trumpCard: Card | null;
   readonly currentTrick: Trick;
+  readonly lastCompletedTrick: Trick | null;
+  readonly lastTrickWinnerId: PlayerId | null;
   readonly currentPlayerId: PlayerId | null;
   readonly dealerSeatIndex: number;
   readonly scores: Readonly<Record<string, number>>;

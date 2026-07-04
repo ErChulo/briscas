@@ -46,6 +46,8 @@ export interface SerializedGameState {
   readonly trumpSuit: Suit | null;
   readonly trumpCard: SerializedCard | null;
   readonly currentTrick: SerializedTrick;
+  readonly lastCompletedTrick: SerializedTrick | null;
+  readonly lastTrickWinnerId: string | null;
   readonly currentPlayerId: string | null;
   readonly dealerSeatIndex: number;
   readonly scores: Readonly<Record<string, number>>;
@@ -130,13 +132,9 @@ export class GameStateMapper {
       },
       trumpSuit: state.trumpCard?.suit ?? null,
       trumpCard,
-      currentTrick: {
-        leadPlayerId: state.currentTrick.leadPlayerId,
-        plays: state.currentTrick.plays.map((play) => ({
-          playerId: play.playerId,
-          card: GameStateMapper.cardToData(play.card),
-        })),
-      },
+      currentTrick: GameStateMapper.trickToData(state.currentTrick),
+      lastCompletedTrick: state.lastCompletedTrick ? GameStateMapper.trickToData(state.lastCompletedTrick) : null,
+      lastTrickWinnerId: state.lastTrickWinnerId,
       currentPlayerId: state.currentPlayerId,
       dealerSeatIndex: state.dealerSeatIndex,
       scores: state.scores,
@@ -161,13 +159,9 @@ export class GameStateMapper {
       players: data.players.map(GameStateMapper.playerFromData),
       deck: new Deck(data.deck.cards.map(GameStateMapper.cardFromData), trumpCard),
       trumpCard,
-      currentTrick: new Trick(
-        data.currentTrick.leadPlayerId,
-        data.currentTrick.plays.map((play) => ({
-          playerId: play.playerId,
-          card: GameStateMapper.cardFromData(play.card),
-        })),
-      ),
+      currentTrick: GameStateMapper.trickFromData(data.currentTrick),
+      lastCompletedTrick: data.lastCompletedTrick ? GameStateMapper.trickFromData(data.lastCompletedTrick) : null,
+      lastTrickWinnerId: data.lastTrickWinnerId,
       currentPlayerId: data.currentPlayerId,
       dealerSeatIndex: data.dealerSeatIndex,
       scores: data.scores,
@@ -178,5 +172,25 @@ export class GameStateMapper {
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,
     };
+  }
+
+  private static trickToData(trick: Trick): SerializedTrick {
+    return {
+      leadPlayerId: trick.leadPlayerId,
+      plays: trick.plays.map((play) => ({
+        playerId: play.playerId,
+        card: GameStateMapper.cardToData(play.card),
+      })),
+    };
+  }
+
+  private static trickFromData(data: SerializedTrick): Trick {
+    return new Trick(
+      data.leadPlayerId,
+      data.plays.map((play) => ({
+        playerId: play.playerId,
+        card: GameStateMapper.cardFromData(play.card),
+      })),
+    );
   }
 }

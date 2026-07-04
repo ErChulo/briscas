@@ -18,6 +18,7 @@
   "dependencies": {
     "@vitejs/plugin-react": "latest",
     "firebase": "latest",
+    "gsap": "^3.15.0",
     "react": "latest",
     "react-dom": "latest"
   },

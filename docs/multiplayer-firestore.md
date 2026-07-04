@@ -14,6 +14,8 @@ games/{gameId}
   deck
   deckCount
   currentTrick
+  lastCompletedTrick
+  lastTrickWinnerId
   scores
   roundNumber
   version

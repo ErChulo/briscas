@@ -1,7 +1,10 @@
+import { useLayoutEffect, useRef, useState } from 'react';
+import { gsap } from 'gsap';
 import { BriscasRules } from '../../domain/rules/BriscasRules';
 import { GameStatus } from '../../domain/game/Types';
 import type { GameState } from '../../domain/game/GameState';
 import type { Player } from '../../domain/game/Player';
+import type { PlayedCard } from '../../domain/game/Trick';
 import { CardView } from './CardView';
 import { Scoreboard } from './Scoreboard';
 import { StatusBanner } from './StatusBanner';
@@ -20,6 +23,12 @@ interface GameBoardProps {
 
 const rules = new BriscasRules();
 
+interface AnimatedTrick {
+  readonly plays: readonly PlayedCard[];
+  readonly winnerId: string;
+  readonly version: number;
+}
+
 export function GameBoard({
   state,
   viewPlayerId,
@@ -29,17 +38,156 @@ export function GameBoard({
   onPlayCard,
   onSwapSeven,
   onReset,
-  onLeave,
+	 onLeave,
 }: GameBoardProps) {
+  const tableAreaRef = useRef<HTMLElement>(null);
+  const trickZoneRef = useRef<HTMLDivElement>(null);
+  const animatedPlayKeys = useRef(new Set<string>());
+  const animatedCompletedVersion = useRef<number | null>(null);
+  const [capturingTrick, setCapturingTrick] = useState<AnimatedTrick | null>(null);
   const viewPlayer = state.players.find((player) => player.id === viewPlayerId) ?? state.players[0];
   const opponents = state.players.filter((player) => player.id !== viewPlayer.id);
   const activePlayerName = state.players.find((player) => player.id === state.currentPlayerId)?.displayName ?? 'Nadie';
   const canSwapSeven = rules.canSwapSeven(state, viewPlayer.id).valid;
   const resultText = state.status === GameStatus.Ended ? resultLabel(state) : null;
+  const displayedPlays = capturingTrick?.plays ?? state.currentTrick.plays;
+  const opponentHandSignature = opponents.map((player) => `${player.id}:${player.hand.size}`).join('|');
+
+  useLayoutEffect(() => {
+    if (!state.lastCompletedTrick || !state.lastTrickWinnerId) {
+      return;
+    }
+
+    if (animatedCompletedVersion.current === state.version) {
+      return;
+    }
+
+    animatedCompletedVersion.current = state.version;
+    setCapturingTrick({
+      plays: state.lastCompletedTrick.plays,
+      winnerId: state.lastTrickWinnerId,
+      version: state.version,
+    });
+  }, [state.lastCompletedTrick, state.lastTrickWinnerId, state.version]);
+
+  useLayoutEffect(() => {
+    if (capturingTrick || !trickZoneRef.current) {
+      return;
+    }
+
+    if (state.currentTrick.plays.length === 0) {
+      animatedPlayKeys.current.clear();
+      return;
+    }
+
+    const elements = Array.from(trickZoneRef.current.querySelectorAll<HTMLElement>('.played-card'));
+    state.currentTrick.plays.forEach((play, index) => {
+      const key = playKeyFor(play);
+      if (animatedPlayKeys.current.has(key)) {
+        return;
+      }
+
+      const element = elements.find((candidate) => candidate.dataset.playKey === key);
+      if (!element) {
+        return;
+      }
+
+      animatedPlayKeys.current.add(key);
+      gsap.fromTo(
+        element,
+        {
+          autoAlpha: 0,
+          scale: 0.76,
+          y: play.playerId === viewPlayer.id ? 92 : -76,
+          x: play.playerId === viewPlayer.id ? 0 : index % 2 === 0 ? -28 : 28,
+          rotation: play.playerId === viewPlayer.id ? -4 : 5,
+        },
+        {
+          autoAlpha: 1,
+          scale: 1,
+          x: 0,
+          y: 0,
+          rotation: 0,
+          duration: 0.5,
+          ease: 'power3.out',
+        },
+      );
+    });
+  }, [capturingTrick, state.currentTrick.plays, viewPlayer.id]);
+
+  useLayoutEffect(() => {
+    if (!capturingTrick || !trickZoneRef.current || !tableAreaRef.current) {
+      return;
+    }
+
+    const elements = Array.from(trickZoneRef.current.querySelectorAll<HTMLElement>('.played-card--capturing'));
+    const target = Array.from(tableAreaRef.current.querySelectorAll<HTMLElement>('[data-player-target]')).find(
+      (element) => element.dataset.playerTarget === capturingTrick.winnerId,
+    );
+    const targetRect = (target ?? tableAreaRef.current).getBoundingClientRect();
+
+    const timeline = gsap.timeline({
+      onComplete: () => {
+        setCapturingTrick((current) => (current?.version === capturingTrick.version ? null : current));
+      },
+    });
+
+    timeline.fromTo(
+      elements,
+      { autoAlpha: 0, scale: 0.82, y: 24, rotation: -3 },
+      { autoAlpha: 1, scale: 1, y: 0, rotation: 0, duration: 0.28, stagger: 0.05, ease: 'power2.out' },
+    );
+    timeline.to(elements, {
+      autoAlpha: 0,
+      scale: 0.36,
+      rotation: (index) => (index % 2 === 0 ? -12 : 12),
+      x: (_, element) => {
+        const rect = (element as HTMLElement).getBoundingClientRect();
+        return targetRect.left + targetRect.width / 2 - (rect.left + rect.width / 2);
+      },
+      y: (_, element) => {
+        const rect = (element as HTMLElement).getBoundingClientRect();
+        return targetRect.top + targetRect.height / 2 - (rect.top + rect.height / 2);
+      },
+      duration: 0.8,
+      delay: 0.22,
+      stagger: 0.05,
+      ease: 'power3.inOut',
+    });
+
+    return () => {
+      timeline.kill();
+    };
+  }, [capturingTrick]);
+
+  useLayoutEffect(() => {
+    if (!tableAreaRef.current) {
+      return;
+    }
+
+    const cardBacks = Array.from(tableAreaRef.current.querySelectorAll<HTMLElement>('.mini-hand .card-back'));
+    if (cardBacks.length === 0) {
+      return;
+    }
+
+    const tween = gsap.to(cardBacks, {
+      rotationY: 180,
+      duration: 2.35,
+      ease: 'sine.inOut',
+      repeat: -1,
+      yoyo: true,
+      stagger: 0.12,
+      transformPerspective: 700,
+    });
+
+    return () => {
+      tween.kill();
+    };
+  }, [opponentHandSignature]);
 
   return (
     <main className="game-shell">
-      <section className="table-area" aria-label="Mesa de juego">
+      <section className="table-area" aria-label="Mesa de juego" ref={tableAreaRef}>
         <header className="game-topbar panel">
           <div>
             <p className="eyebrow">Sala {state.gameId}</p>
@@ -60,10 +208,15 @@ export function GameBoard({
         </div>
 
         <div className="table-center">
-          <div className="trick-zone" aria-label="Baza actual">
-            {state.currentTrick.plays.length === 0 ? <p>La baza está vacía.</p> : null}
-            {state.currentTrick.plays.map((play) => (
-              <div key={`${play.playerId}-${play.card.id}`} className="played-card">
+          <div className="trick-zone" aria-label="Baza actual" ref={trickZoneRef}>
+            {displayedPlays.length === 0 ? <p>La baza está vacía.</p> : null}
+            {capturingTrick ? <p className="trick-winner-label">Baza para {playerName(state, capturingTrick.winnerId)}</p> : null}
+            {displayedPlays.map((play) => (
+              <div
+                key={`${capturingTrick?.version ?? 'current'}-${play.playerId}-${play.card.id}`}
+                className={`played-card ${capturingTrick ? 'played-card--capturing' : ''}`}
+                data-play-key={playKeyFor(play)}
+              >
                 <CardView card={play.card} label={`${playerName(state, play.playerId)} jugó ${play.card.toString()}`} />
                 <span>{playerName(state, play.playerId)}</span>
               </div>
@@ -86,7 +239,7 @@ export function GameBoard({
           </div>
         </div>
 
-        <section className="hand-panel panel" aria-label={`Mano de ${viewPlayer.displayName}`}>
+        <section className="hand-panel panel" aria-label={`Mano de ${viewPlayer.displayName}`} data-player-target={viewPlayer.id}>
           <div className="hand-heading">
             <h2>{viewPlayer.displayName}</h2>
             <p>{state.currentPlayerId === viewPlayer.id ? 'Puedes jugar una carta.' : 'Espera tu turno.'}</p>
@@ -98,17 +251,17 @@ export function GameBoard({
                 <CardView
                   key={card.id}
                   card={card}
-                  disabled={busy || !validation.valid}
+                  disabled={busy || Boolean(capturingTrick) || !validation.valid}
                   onClick={() => void onPlayCard(card.id)}
                 />
               );
             })}
           </div>
           <div className="button-grid compact">
-            <button type="button" disabled={busy || !canSwapSeven} onClick={() => void onSwapSeven()}>
+            <button type="button" disabled={busy || Boolean(capturingTrick) || !canSwapSeven} onClick={() => void onSwapSeven()}>
               Intercambiar siete
             </button>
-            <button type="button" className="secondary" disabled={busy} onClick={() => void onReset()}>
+            <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={() => void onReset()}>
               Nueva ronda
             </button>
             <button type="button" className="secondary" onClick={onLeave}>
@@ -125,7 +278,7 @@ export function GameBoard({
 
 function OpponentHand({ player, active }: { readonly player: Player; readonly active: boolean }) {
   return (
-    <div className={`opponent-hand panel ${active ? 'is-active' : ''}`}>
+    <div className={`opponent-hand panel ${active ? 'is-active' : ''}`} data-player-target={player.id}>
       <strong>{player.displayName}</strong>
       <div className="mini-hand" aria-label={`${player.hand.size} cartas ocultas`}>
         {Array.from({ length: player.hand.size }, (_, index) => (
@@ -134,6 +287,10 @@ function OpponentHand({ player, active }: { readonly player: Player; readonly ac
       </div>
     </div>
   );
+}
+
+function playKeyFor(play: PlayedCard): string {
+  return `${play.playerId}:${play.card.id}`;
 }
 
 function playerName(state: GameState, playerId: string): string {

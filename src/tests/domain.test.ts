@@ -116,6 +116,8 @@ function endedState(scores: Record<string, number>, includeCardInHand: boolean):
     deck: new Deck([], trumpCard),
     trumpCard,
     currentTrick: new Trick(null),
+    lastCompletedTrick: null,
+    lastTrickWinnerId: null,
     currentPlayerId: null,
     dealerSeatIndex: 0,
     scores,
