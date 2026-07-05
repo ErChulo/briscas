@@ -9,6 +9,13 @@ export class SoundEffects {
     this.enabled = enabled;
   }
 
+  public unlock(): void {
+    const context = this.getContext();
+    if (context?.state === 'suspended') {
+      void context.resume().catch(() => undefined);
+    }
+  }
+
   public play(sound: SoundName): void {
     if (!this.enabled) {
       return;
@@ -20,7 +27,15 @@ export class SoundEffects {
     }
 
     if (context.state === 'suspended') {
-      void context.resume();
+      void context
+        .resume()
+        .then(() => {
+          if (context.state === 'running') {
+            this.play(sound);
+          }
+        })
+        .catch(() => undefined);
+      return;
     }
 
     if (sound === 'play') {
@@ -37,7 +52,7 @@ export class SoundEffects {
       return this.context;
     }
 
-    const AudioContextClass = globalThis.AudioContext;
+    const AudioContextClass = globalThis.AudioContext ?? (globalThis as typeof globalThis & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
     if (!AudioContextClass) {
       return null;
     }

@@ -138,6 +138,7 @@ export function useGameController() {
   }, [localContext.useCases.playCard, mode, state]);
 
   async function startLocal(displayName: string, variant: GameVariant) {
+    unlockAudio();
     await run(async () => {
       const host = loadLocalPlayer(displayName);
       saveLocalPlayer(host);
@@ -165,6 +166,7 @@ export function useGameController() {
   }
 
   async function createOnline(displayName: string, variant: GameVariant) {
+    unlockAudio();
     await run(async () => {
       if (!firebaseConfigured) {
         throw new Error('El modo online no está configurado.');
@@ -189,6 +191,7 @@ export function useGameController() {
   }
 
   async function joinOnline(displayName: string, gameId: string) {
+    unlockAudio();
     await run(async () => {
       if (!firebaseConfigured) {
         throw new Error('El modo online no está configurado.');
@@ -209,6 +212,7 @@ export function useGameController() {
   }
 
   async function startGame() {
+    unlockAudio();
     const gameState = requireState();
     await run(async () => {
       await activeUseCases().startGame.execute({ gameId: gameState.gameId, playerId: currentPlayer.id });
@@ -216,6 +220,7 @@ export function useGameController() {
   }
 
   async function playCard(cardId: string) {
+    unlockAudio();
     const gameState = requireState();
     const playerId = currentPlayer.id;
     sounds.current.play('play');
@@ -225,10 +230,12 @@ export function useGameController() {
   }
 
   function toggleSound() {
+    unlockAudio();
     setSoundEnabled((enabled) => !enabled);
   }
 
   async function swapSeven(exchangeRank: TrumpSwapRank = 7) {
+    unlockAudio();
     const gameState = requireState();
     const playerId = currentPlayer.id;
     await run(async () => {
@@ -237,6 +244,7 @@ export function useGameController() {
   }
 
   async function resetGame() {
+    unlockAudio();
     const gameState = requireState();
     const playerId = currentPlayer.id;
     await run(async () => {
@@ -286,6 +294,10 @@ export function useGameController() {
     } finally {
       setBusy(false);
     }
+  }
+
+  function unlockAudio() {
+    sounds.current.unlock();
   }
 
   return {

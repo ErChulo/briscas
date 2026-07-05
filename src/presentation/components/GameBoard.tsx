@@ -57,14 +57,15 @@ export function GameBoard({
   const previousHands = useRef<HandSnapshot>({});
   const [capturingTrick, setCapturingTrick] = useState<AnimatedTrick | null>(null);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
-  const [dismissedScoreStatsKey, setDismissedScoreStatsKey] = useState<string | null>(null);
+  const [openScoreStatsKey, setOpenScoreStatsKey] = useState<string | null>(null);
   const viewPlayer = state.players.find((player) => player.id === viewPlayerId) ?? state.players[0];
   const opponents = state.players.filter((player) => player.id !== viewPlayer.id);
   const activePlayerName = state.players.find((player) => player.id === state.currentPlayerId)?.displayName ?? 'Nadie';
   const availableSwapRank = availableTrumpSwapRank(state, viewPlayer.id);
   const scoreStatsKey = state.status === GameStatus.Ended ? `${state.gameId}:${state.roundNumber}:${state.version}` : null;
-  const scoreStatsOpen = Boolean(scoreStatsKey && dismissedScoreStatsKey !== scoreStatsKey);
+  const scoreStatsOpen = Boolean(scoreStatsKey && openScoreStatsKey === scoreStatsKey);
   const resultText = state.status === GameStatus.Ended ? resultLabel(state) : null;
+  const finalScores = state.status === GameStatus.Ended ? finalScoreRows(state) : [];
   const displayedPlays = capturingTrick?.plays ?? state.currentTrick.plays;
 
   useEffect(() => {
@@ -100,7 +101,7 @@ export function GameBoard({
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === 'Escape' && scoreStatsKey) {
-        setDismissedScoreStatsKey(scoreStatsKey);
+        setOpenScoreStatsKey(null);
       }
     }
 
@@ -356,7 +357,13 @@ export function GameBoard({
 
   function closeScoreStats() {
     if (scoreStatsKey) {
-      setDismissedScoreStatsKey(scoreStatsKey);
+      setOpenScoreStatsKey(null);
+    }
+  }
+
+  function openScoreStats() {
+    if (scoreStatsKey) {
+      setOpenScoreStatsKey(scoreStatsKey);
     }
   }
 
@@ -378,13 +385,38 @@ export function GameBoard({
 
         <div className="status-stack" aria-live="polite">
           <StatusBanner message={message} tone="error" />
-          <StatusBanner message={resultText} tone="success" />
           {state.status === GameStatus.Ended ? (
-            <button type="button" className="stats-open-button" onClick={() => setDismissedScoreStatsKey(null)}>
+            <button type="button" className="stats-open-button" onClick={openScoreStats}>
               Ver estadisticas
             </button>
           ) : null}
         </div>
+
+        {state.status === GameStatus.Ended ? (
+          <section className="final-result-card panel" aria-live="polite" aria-label="Resultado final">
+            <p className="eyebrow">Resultado final</p>
+            <h2>{resultText}</h2>
+            <dl>
+              {finalScores.map((row) => (
+                <div key={row.ownerId} className={row.winning ? 'is-winner' : ''}>
+                  <dt>{row.label}</dt>
+                  <dd>{row.score} pts</dd>
+                </div>
+              ))}
+            </dl>
+            <div className="final-result-actions">
+              <button type="button" onClick={openScoreStats}>
+                Ver grafica
+              </button>
+              <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={() => void onReset()}>
+                Nueva ronda
+              </button>
+              <button type="button" className="secondary" onClick={onLeave}>
+                Menú
+              </button>
+            </div>
+          </section>
+        ) : null}
 
         <div className="opponent-row">
           {opponents.map((player) => (
@@ -664,6 +696,22 @@ function scoreOwnerLabel(state: GameState, ownerId: string): string {
   }
 
   return playerName(state, ownerId);
+}
+
+function finalScoreRows(state: GameState): readonly {
+  readonly ownerId: string;
+  readonly label: string;
+  readonly score: number;
+  readonly winning: boolean;
+}[] {
+  return Object.entries(state.scores)
+    .map(([ownerId, score]) => ({
+      ownerId,
+      label: scoreOwnerLabel(state, ownerId),
+      score,
+      winning: state.winnerIds.includes(ownerId),
+    }))
+    .sort((left, right) => right.score - left.score);
 }
 
 function availableTrumpSwapRank(state: GameState, playerId: string): TrumpSwapRank | null {
