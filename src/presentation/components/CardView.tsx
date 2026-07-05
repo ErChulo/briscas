@@ -7,10 +7,11 @@ interface CardViewProps {
   readonly hidden?: boolean;
   readonly disabled?: boolean;
   readonly label?: string;
+  readonly dataCardId?: string;
   readonly onClick?: () => void;
 }
 
-export function CardView({ card, hidden = false, disabled = false, label, onClick }: CardViewProps) {
+export function CardView({ card, hidden = false, disabled = false, label, dataCardId, onClick }: CardViewProps) {
   const className = ['card-view', disabled ? 'card-view--disabled' : '', onClick ? 'card-view--button' : '']
     .filter(Boolean)
     .join(' ');
@@ -24,11 +25,18 @@ export function CardView({ card, hidden = false, disabled = false, label, onClic
   }
 
   if (!onClick) {
-    return <img className={className} src={CardImageRegistry.getImage(card)} alt={label ?? card.toString()} />;
+    return <img className={className} src={CardImageRegistry.getImage(card)} alt={label ?? card.toString()} data-card-id={dataCardId} />;
   }
 
   return (
-    <button className={className} type="button" disabled={disabled} onClick={onClick} aria-label={label ?? card.toString()}>
+    <button
+      className={className}
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      aria-label={label ?? card.toString()}
+      data-card-id={dataCardId}
+    >
       <img src={CardImageRegistry.getImage(card)} alt="" />
     </button>
   );

@@ -32,6 +32,8 @@ interface AnimatedTrick {
   readonly version: number;
 }
 
+type HandSnapshot = Readonly<Record<string, readonly string[]>>;
+
 export function GameBoard({
   state,
   viewPlayerId,
@@ -51,6 +53,8 @@ export function GameBoard({
   const animatedPlayKeys = useRef(new Set<string>());
   const animatedCompletedVersion = useRef<number | null>(null);
   const animatedDealKey = useRef<string | null>(null);
+  const animatedDrawVersion = useRef<number | null>(null);
+  const previousHands = useRef<HandSnapshot>({});
   const [capturingTrick, setCapturingTrick] = useState<AnimatedTrick | null>(null);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
   const [dismissedScoreStatsKey, setDismissedScoreStatsKey] = useState<string | null>(null);
@@ -109,6 +113,7 @@ export function GameBoard({
 
   useLayoutEffect(() => {
     if (state.status !== GameStatus.Playing || state.deckSeed === null || !tableAreaRef.current) {
+      previousHands.current = handSnapshot(state.players);
       return;
     }
 
@@ -134,14 +139,15 @@ export function GameBoard({
     gsap.set(dealtCards, { transition: 'none' });
     dealtCards.forEach((element, index) => {
       const rect = element.getBoundingClientRect();
+      const isViewPlayerCard = Boolean(element.closest('.hand-row'));
       timeline.fromTo(
         element,
         {
           autoAlpha: 0,
-          scale: 0.22,
-          x: stockCenterX - (rect.left + rect.width / 2),
-          y: stockCenterY - (rect.top + rect.height / 2),
-          rotation: index % 2 === 0 ? -18 : 18,
+          scale: isViewPlayerCard ? 0.9 : 0.22,
+          x: isViewPlayerCard ? 0 : stockCenterX - (rect.left + rect.width / 2),
+          y: isViewPlayerCard ? 0 : stockCenterY - (rect.top + rect.height / 2),
+          rotation: isViewPlayerCard ? 0 : index % 2 === 0 ? -18 : 18,
         },
         {
           autoAlpha: 1,
@@ -160,7 +166,86 @@ export function GameBoard({
     return () => {
       timeline.kill();
     };
-  }, [state.deckSeed, state.gameId, state.roundNumber, state.status, viewPlayer.id]);
+  }, [state.deckSeed, state.gameId, state.players, state.roundNumber, state.status, viewPlayer.id]);
+
+  useLayoutEffect(() => {
+    const currentHands = handSnapshot(state.players);
+    if (!state.lastCompletedTrick || animatedDrawVersion.current === state.version || !tableAreaRef.current) {
+      previousHands.current = currentHands;
+      return;
+    }
+
+    const drawTargets = state.players.flatMap((player) => {
+      const previous = previousHands.current[player.id] ?? [];
+      return currentHands[player.id]
+        .filter((cardId) => !previous.includes(cardId))
+        .map((cardId) => ({ playerId: player.id, cardId }));
+    });
+
+    animatedDrawVersion.current = state.version;
+    previousHands.current = currentHands;
+
+    if (drawTargets.length === 0) {
+      return;
+    }
+
+    const stockCard = tableAreaRef.current.querySelector<HTMLElement>('.stock-deck-card');
+    const sourceCard = stockCard?.querySelector<HTMLElement>('.card-back') ?? stockCard;
+    if (!sourceCard) {
+      return;
+    }
+
+    const sourceRect = sourceCard.getBoundingClientRect();
+    const targetElements = drawTargets
+      .map((draw) => targetElementForDraw(tableAreaRef.current as HTMLElement, draw.playerId, draw.cardId, viewPlayer.id))
+      .filter((element): element is HTMLElement => Boolean(element));
+
+    if (targetElements.length === 0) {
+      return;
+    }
+
+    gsap.set(targetElements, { autoAlpha: 0, scale: 0.9 });
+    const timeline = gsap.timeline({ delay: 1.45 });
+
+    targetElements.forEach((target, index) => {
+      const targetRect = target.getBoundingClientRect();
+      const flyer = sourceCard.cloneNode(true) as HTMLElement;
+      flyer.classList.add('dealt-card-flyer');
+      document.body.append(flyer);
+
+      gsap.set(flyer, {
+        position: 'fixed',
+        left: sourceRect.left,
+        top: sourceRect.top,
+        width: sourceRect.width,
+        height: sourceRect.height,
+        margin: 0,
+        zIndex: 120,
+        pointerEvents: 'none',
+      });
+
+      timeline.to(
+        flyer,
+        {
+          left: targetRect.left,
+          top: targetRect.top,
+          width: targetRect.width,
+          height: targetRect.height,
+          rotation: index % 2 === 0 ? -7 : 7,
+          duration: 0.46,
+          ease: 'power3.inOut',
+          onComplete: () => flyer.remove(),
+        },
+        index * 0.08,
+      );
+      timeline.to(target, { autoAlpha: 1, scale: 1, duration: 0.18, ease: 'power2.out' }, index * 0.08 + 0.36);
+    });
+
+    return () => {
+      timeline.kill();
+      document.querySelectorAll('.dealt-card-flyer').forEach((element) => element.remove());
+    };
+  }, [state.lastCompletedTrick, state.players, state.version, viewPlayer.id]);
 
   useLayoutEffect(() => {
     if (!state.lastCompletedTrick || !state.lastTrickWinnerId) {
@@ -276,7 +361,7 @@ export function GameBoard({
   }
 
   return (
-    <main className="game-shell">
+    <main className={`game-shell ${localMode ? 'game-shell--local' : 'game-shell--online'}`}>
       <section className="table-area" aria-label="Mesa de juego" ref={tableAreaRef}>
         <header className="game-topbar panel">
           <div>
@@ -336,6 +421,7 @@ export function GameBoard({
                     <CardView
                       key={card.id}
                       card={card}
+                      dataCardId={card.id}
                       disabled={busy || Boolean(capturingTrick) || !validation.valid}
                       onClick={() => void onPlayCard(card.id)}
                     />
@@ -607,6 +693,28 @@ function OpponentHand({ player, active }: { readonly player: Player; readonly ac
       </div>
     </div>
   );
+}
+
+function handSnapshot(players: readonly Player[]): HandSnapshot {
+  return Object.fromEntries(players.map((player) => [player.id, player.hand.toArray().map((card) => card.id)]));
+}
+
+function targetElementForDraw(tableArea: HTMLElement, playerId: string, cardId: string, viewPlayerId: string): HTMLElement | null {
+  const playerArea = Array.from(tableArea.querySelectorAll<HTMLElement>('[data-player-target]')).find(
+    (element) => element.dataset.playerTarget === playerId,
+  );
+
+  if (!playerArea) {
+    return null;
+  }
+
+  if (playerId === viewPlayerId) {
+    return Array.from(playerArea.querySelectorAll<HTMLElement>('[data-card-id]')).find(
+      (element) => element.dataset.cardId === cardId,
+    ) ?? null;
+  }
+
+  return Array.from(playerArea.querySelectorAll<HTMLElement>('.mini-hand > .card-back')).at(-1) ?? null;
 }
 
 function playKeyFor(play: PlayedCard): string {
