@@ -166,6 +166,7 @@ export function GameBoard({
 
     return () => {
       timeline.kill();
+      gsap.set(dealtCards, { clearProps: 'transform,opacity,visibility,transition' });
     };
   }, [state.deckSeed, state.gameId, state.players, state.roundNumber, state.status, viewPlayer.id]);
 
@@ -206,7 +207,7 @@ export function GameBoard({
     }
 
     gsap.set(targetElements, { autoAlpha: 0, scale: 0.9 });
-    const timeline = gsap.timeline({ delay: 1.45 });
+    const timeline = gsap.timeline({ delay: 0.28 });
 
     targetElements.forEach((target, index) => {
       const targetRect = target.getBoundingClientRect();
@@ -233,17 +234,18 @@ export function GameBoard({
           width: targetRect.width,
           height: targetRect.height,
           rotation: index % 2 === 0 ? -7 : 7,
-          duration: 0.46,
+          duration: 0.24,
           ease: 'power3.inOut',
           onComplete: () => flyer.remove(),
         },
-        index * 0.08,
+        index * 0.05,
       );
-      timeline.to(target, { autoAlpha: 1, scale: 1, duration: 0.18, ease: 'power2.out' }, index * 0.08 + 0.36);
+      timeline.to(target, { autoAlpha: 1, scale: 1, duration: 0.1, ease: 'power2.out' }, index * 0.05 + 0.18);
     });
 
     return () => {
       timeline.kill();
+      gsap.set(targetElements, { clearProps: 'transform,opacity,visibility' });
       document.querySelectorAll('.dealt-card-flyer').forEach((element) => element.remove());
     };
   }, [state.lastCompletedTrick, state.players, state.version, viewPlayer.id]);
@@ -303,7 +305,7 @@ export function GameBoard({
           x: 0,
           y: 0,
           rotation: 0,
-          duration: 0.5,
+          duration: 0.24,
           ease: 'power3.out',
         },
       );
@@ -330,7 +332,7 @@ export function GameBoard({
     timeline.fromTo(
       elements,
       { autoAlpha: 0, scale: 0.82, y: 24, rotation: -3 },
-      { autoAlpha: 1, scale: 1, y: 0, rotation: 0, duration: 0.28, stagger: 0.05, ease: 'power2.out' },
+      { autoAlpha: 1, scale: 1, y: 0, rotation: 0, duration: 0.16, stagger: 0.03, ease: 'power2.out' },
     );
     timeline.to(elements, {
       autoAlpha: 0,
@@ -344,9 +346,9 @@ export function GameBoard({
         const rect = (element as HTMLElement).getBoundingClientRect();
         return targetRect.top + targetRect.height / 2 - (rect.top + rect.height / 2);
       },
-      duration: 0.8,
-      delay: 1,
-      stagger: 0.05,
+      duration: 0.34,
+      delay: 0.12,
+      stagger: 0.03,
       ease: 'power3.inOut',
     });
 
@@ -425,43 +427,41 @@ export function GameBoard({
         </div>
 
         <div className="table-center">
-          <div className="play-column">
-            <div className="trick-zone" aria-label="Baza actual" ref={trickZoneRef}>
-              {displayedPlays.length === 0 ? <p>La baza está vacía.</p> : null}
-              {capturingTrick ? <p className="trick-winner-label">Baza para {playerName(state, capturingTrick.winnerId)}</p> : null}
-              {displayedPlays.map((play) => (
-                <div
-                  key={`${capturingTrick?.version ?? 'current'}-${play.playerId}-${play.card.id}`}
-                  className={`played-card ${capturingTrick ? 'played-card--capturing' : ''}`}
-                  data-play-key={playKeyFor(play)}
-                >
-                  <CardView card={play.card} label={`${playerName(state, play.playerId)} jugó ${play.card.toString()}`} />
-                  <span>{playerName(state, play.playerId)}</span>
-                </div>
-              ))}
-            </div>
-
-            <section className="hand-panel panel" aria-label={`Mano de ${viewPlayer.displayName}`} data-player-target={viewPlayer.id}>
-              <div className="hand-heading">
-                <h2>{viewPlayer.displayName}</h2>
-                <p>{state.currentPlayerId === viewPlayer.id ? 'Puedes jugar una carta.' : 'Espera tu turno.'}</p>
+          <div className="trick-zone" aria-label="Baza actual" ref={trickZoneRef}>
+            {displayedPlays.length === 0 ? <p>La baza está vacía.</p> : null}
+            {capturingTrick ? <p className="trick-winner-label">Baza para {playerName(state, capturingTrick.winnerId)}</p> : null}
+            {displayedPlays.map((play) => (
+              <div
+                key={`${capturingTrick?.version ?? 'current'}-${play.playerId}-${play.card.id}`}
+                className={`played-card ${capturingTrick ? 'played-card--capturing' : ''}`}
+                data-play-key={playKeyFor(play)}
+              >
+                <CardView card={play.card} label={`${playerName(state, play.playerId)} jugó ${play.card.toString()}`} />
+                <span>{playerName(state, play.playerId)}</span>
               </div>
-              <div className="hand-row">
-                {viewPlayer.hand.toArray().map((card) => {
-                  const validation = rules.canPlayCard(state, viewPlayer.id, card);
-                  return (
-                    <CardView
-                      key={card.id}
-                      card={card}
-                      dataCardId={card.id}
-                      disabled={busy || Boolean(capturingTrick) || !validation.valid}
-                      onClick={() => void onPlayCard(card.id)}
-                    />
-                  );
-                })}
-              </div>
-            </section>
+            ))}
           </div>
+
+          <section className="hand-panel panel" aria-label={`Mano de ${viewPlayer.displayName}`} data-player-target={viewPlayer.id}>
+            <div className="hand-heading">
+              <h2>{viewPlayer.displayName}</h2>
+              <p>{state.currentPlayerId === viewPlayer.id ? 'Puedes jugar una carta.' : 'Espera tu turno.'}</p>
+            </div>
+            <div className="hand-row">
+              {viewPlayer.hand.toArray().map((card) => {
+                const validation = rules.canPlayCard(state, viewPlayer.id, card);
+                return (
+                  <CardView
+                    key={card.id}
+                    card={card}
+                    dataCardId={card.id}
+                    disabled={busy || Boolean(capturingTrick) || !validation.valid}
+                    onClick={() => void onPlayCard(card.id)}
+                  />
+                );
+              })}
+            </div>
+          </section>
 
           <div className="stock-zone panel" aria-label="Mazo y triunfo">
             <div className="stock-counter">
@@ -534,9 +534,43 @@ export function GameBoard({
           <span className="scoreboard-tab__arrow" aria-hidden="true">
             {scoreboardOpen ? '‹' : '›'}
           </span>
-          <span>Marcador</span>
+          <span>Info</span>
         </button>
         <div id="scoreboard-drawer-panel" className="scoreboard-drawer__panel">
+          <div className="mobile-drawer-controls" aria-label="Controles de partida">
+            <div className="mobile-drawer-summary">
+              <p className="eyebrow">Sala {state.gameId}</p>
+              <h2>{state.status === GameStatus.Ended ? 'Partida terminada' : `Turno: ${activePlayerName}`}</h2>
+              {localMode ? <p className="hint">Modo local contra IA</p> : null}
+            </div>
+            <StatusBanner message={message} tone="error" />
+            {state.status === GameStatus.Ended ? (
+              <button type="button" className="stats-open-button" onClick={openScoreStats}>
+                Ver estadisticas
+              </button>
+            ) : null}
+            <button type="button" className="sound-toggle" onClick={onToggleSound} aria-pressed={soundEnabled}>
+              Sonido {soundEnabled ? 'ON' : 'OFF'}
+            </button>
+            <div className="mobile-drawer-actions">
+              {availableSwapRank ? (
+                <button
+                  type="button"
+                  className="swap-action"
+                  disabled={busy || Boolean(capturingTrick)}
+                  onClick={() => void onSwapTrump(availableSwapRank)}
+                >
+                  {swapButtonLabel(availableSwapRank)}
+                </button>
+              ) : null}
+              <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={() => void onReset()}>
+                Nueva ronda
+              </button>
+              <button type="button" className="secondary" onClick={onLeave}>
+                Menú
+              </button>
+            </div>
+          </div>
           <Scoreboard state={state} />
         </div>
       </div>

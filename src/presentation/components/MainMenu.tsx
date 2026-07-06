@@ -27,6 +27,10 @@ export function MainMenu({
   const [roomCode, setRoomCode] = useState('');
   const [variant, setVariant] = useState(GameVariant.Standard2P);
 
+  function updateRoomCode(value: string) {
+    setRoomCode(normalizeRoomCode(value));
+  }
+
   return (
     <main className="menu-shell">
       <section className="hero-card">
@@ -76,15 +80,32 @@ export function MainMenu({
           className="join-form"
           onSubmit={(event) => {
             event.preventDefault();
-            void onJoinOnline(displayName, roomCode.trim().toUpperCase());
+            const formData = new FormData(event.currentTarget);
+            const submittedCode = normalizeRoomCode(String(formData.get('roomCode') ?? roomCode)) || normalizeRoomCode(roomCode);
+            updateRoomCode(submittedCode);
+            if (!submittedCode) {
+              return;
+            }
+
+            void onJoinOnline(displayName, submittedCode);
           }}
         >
           <label>
             Código de sala
-            <input value={roomCode} onChange={(event) => setRoomCode(event.target.value)} placeholder="ABC123" />
+            <input
+              name="roomCode"
+              value={roomCode}
+              onInput={(event) => updateRoomCode(event.currentTarget.value)}
+              onChange={(event) => updateRoomCode(event.currentTarget.value)}
+              placeholder="ABC123"
+              autoCapitalize="characters"
+              autoCorrect="off"
+              spellCheck={false}
+              inputMode="text"
+            />
           </label>
-          <button type="submit" disabled={busy || !firebaseConfigured || roomCode.trim().length === 0}>
-            Unirse online
+          <button type="submit" disabled={busy || !firebaseConfigured}>
+            {busy ? 'Conectando...' : 'Unirse online'}
           </button>
         </form>
 
@@ -141,4 +162,8 @@ function variantLabel(variant: GameVariant): string {
 
 function createdAtLabel(createdAt: number): string {
   return new Date(createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function normalizeRoomCode(value: string): string {
+  return value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6);
 }

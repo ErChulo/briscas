@@ -8,7 +8,7 @@ import { SwapSevenUseCase } from '../../application/use-cases/SwapSevenUseCase';
 import type { GameRepository, OpenGameSummary } from '../../application/ports/GameRepository';
 import { SystemClock } from '../../application/services/Clock';
 import { BrowserIdGenerator } from '../../application/services/IdGenerator';
-import type { Card } from '../../domain/cards/Card';
+import { Card } from '../../domain/cards/Card';
 import { GameEngine } from '../../domain/game/GameEngine';
 import type { GameState } from '../../domain/game/GameState';
 import { GameStatus, GameVariant } from '../../domain/game/Types';
@@ -24,6 +24,9 @@ import { SoundEffects } from '../audio/SoundEffects';
 type Mode = 'menu' | 'local' | 'online';
 const rules = new BriscasRules();
 const trickResolver = new StandardTrickResolver();
+const optimisticEngine = new GameEngine();
+const ONLINE_ACTION_TIMEOUT_MS = 12_000;
+const ONLINE_ACTION_TIMEOUT_MESSAGE = 'No se pudo conectar. Revisa la conexión e intenta otra vez.';
 
 interface CurrentPlayer {
   readonly id: string;
@@ -45,6 +48,7 @@ export function useGameController() {
     return { repository, useCases: makeUseCases(repository) };
   });
   const onlineRepository = useRef<GameRepository | null>(null);
+  const onlineUseCases = useRef<UseCases | null>(null);
   const sounds = useRef(new SoundEffects());
   const unsubscribe = useRef<(() => void) | null>(null);
   const [mode, setMode] = useState<Mode>('menu');
@@ -149,7 +153,7 @@ export function useGameController() {
         hostDisplayName: host.displayName,
         variant,
       });
-      await subscribeTo(localContext.repository, game.gameId);
+      await subscribeTo(localContext.repository, game.gameId, game);
 
       const maxPlayers = variant === GameVariant.Standard4P ? 4 : 2;
       for (let index = 1; index < maxPlayers; index += 1) {
@@ -173,20 +177,20 @@ export function useGameController() {
       }
 
       const auth = new FirebaseAuthGateway();
-      const player = await auth.signInAnonymously(displayName);
+      const player = await withOnlineTimeout(auth.signInAnonymously(displayName));
       const repository = getOnlineRepository();
-      const useCases = makeUseCases(repository);
-      const game = await useCases.createGame.execute({
+      const useCases = getOnlineUseCases();
+      const game = await withOnlineTimeout(useCases.createGame.execute({
         hostPlayerId: player.uid,
         hostDisplayName: player.displayName,
         variant,
-      });
+      }));
 
       setCurrentPlayer({ id: player.uid, displayName: player.displayName });
       setViewPlayerId(player.uid);
       setMode('online');
       setOpenGames([]);
-      await subscribeTo(repository, game.gameId);
+      await subscribeTo(repository, game.gameId, game);
     });
   }
 
@@ -198,16 +202,18 @@ export function useGameController() {
       }
 
       const auth = new FirebaseAuthGateway();
-      const player = await auth.signInAnonymously(displayName);
+      const player = await withOnlineTimeout(auth.signInAnonymously(displayName));
       const repository = getOnlineRepository();
-      const useCases = makeUseCases(repository);
-      const game = await useCases.joinGame.execute({ gameId, playerId: player.uid, displayName: player.displayName });
+      const useCases = getOnlineUseCases();
+      const game = await withOnlineTimeout(
+        useCases.joinGame.execute({ gameId, playerId: player.uid, displayName: player.displayName }),
+      );
 
       setCurrentPlayer({ id: player.uid, displayName: player.displayName });
       setViewPlayerId(player.uid);
       setMode('online');
       setOpenGames([]);
-      await subscribeTo(repository, game.gameId);
+      await subscribeTo(repository, game.gameId, game);
     });
   }
 
@@ -215,7 +221,10 @@ export function useGameController() {
     unlockAudio();
     const gameState = requireState();
     await run(async () => {
-      await activeUseCases().startGame.execute({ gameId: gameState.gameId, playerId: currentPlayer.id });
+      const nextState = await withActiveOnlineTimeout(
+        activeUseCases().startGame.execute({ gameId: gameState.gameId, playerId: currentPlayer.id }),
+      );
+      setState(nextState);
     });
   }
 
@@ -225,7 +234,22 @@ export function useGameController() {
     const playerId = currentPlayer.id;
     sounds.current.play('play');
     await run(async () => {
-      await activeUseCases().playCard.execute({ gameId: gameState.gameId, playerId, cardId });
+      const optimisticState = mode === 'online' ? optimisticPlayCard(gameState, playerId, cardId) : null;
+      if (optimisticState) {
+        setState(optimisticState);
+      }
+
+      try {
+        const nextState = await withActiveOnlineTimeout(
+          activeUseCases().playCard.execute({ gameId: gameState.gameId, playerId, cardId }),
+        );
+        setState(nextState);
+      } catch (error) {
+        if (optimisticState) {
+          setState(gameState);
+        }
+        throw error;
+      }
     });
   }
 
@@ -239,7 +263,10 @@ export function useGameController() {
     const gameState = requireState();
     const playerId = currentPlayer.id;
     await run(async () => {
-      await activeUseCases().swapSeven.execute({ gameId: gameState.gameId, playerId, exchangeRank });
+      const nextState = await withActiveOnlineTimeout(
+        activeUseCases().swapSeven.execute({ gameId: gameState.gameId, playerId, exchangeRank }),
+      );
+      setState(nextState);
     });
   }
 
@@ -248,7 +275,10 @@ export function useGameController() {
     const gameState = requireState();
     const playerId = currentPlayer.id;
     await run(async () => {
-      await activeUseCases().resetGame.execute({ gameId: gameState.gameId, playerId });
+      const nextState = await withActiveOnlineTimeout(
+        activeUseCases().resetGame.execute({ gameId: gameState.gameId, playerId }),
+      );
+      setState(nextState);
     });
   }
 
@@ -260,20 +290,34 @@ export function useGameController() {
     setMessage(null);
   }
 
-  async function subscribeTo(repository: GameRepository, gameId: string) {
+  async function subscribeTo(repository: GameRepository, gameId: string, initialState?: GameState) {
     unsubscribe.current?.();
     unsubscribe.current = repository.subscribe(gameId, setState);
+    if (initialState) {
+      setState(initialState);
+      return;
+    }
+
     const snapshot = await repository.getGame(gameId);
     setState(snapshot);
   }
 
   function activeUseCases(): UseCases {
-    return mode === 'online' ? makeUseCases(getOnlineRepository()) : localContext.useCases;
+    return mode === 'online' ? getOnlineUseCases() : localContext.useCases;
+  }
+
+  function withActiveOnlineTimeout<T>(promise: Promise<T>): Promise<T> {
+    return mode === 'online' ? withOnlineTimeout(promise) : promise;
   }
 
   function getOnlineRepository(): GameRepository {
     onlineRepository.current ??= new FirestoreGameRepository();
     return onlineRepository.current;
+  }
+
+  function getOnlineUseCases(): UseCases {
+    onlineUseCases.current ??= makeUseCases(getOnlineRepository());
+    return onlineUseCases.current;
   }
 
   function requireState(): GameState {
@@ -364,6 +408,14 @@ function sortConservative(cards: readonly Card[]): readonly Card[] {
   });
 }
 
+function optimisticPlayCard(state: GameState, playerId: string, cardId: string): GameState | null {
+  try {
+    return optimisticEngine.playCard(state, playerId, Card.fromId(cardId), Date.now());
+  } catch {
+    return null;
+  }
+}
+
 function makeUseCases(repository: GameRepository): UseCases {
   const engine = new GameEngine();
   const ids = new BrowserIdGenerator();
@@ -398,4 +450,17 @@ function saveLocalPlayer(player: CurrentPlayer): void {
 
 function loadSoundPreference(): boolean {
   return globalThis.localStorage?.getItem('briscas.soundEnabled') !== 'false';
+}
+
+function withOnlineTimeout<T>(promise: Promise<T>): Promise<T> {
+  let timeoutId: ReturnType<typeof globalThis.setTimeout> | null = null;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = globalThis.setTimeout(() => reject(new Error(ONLINE_ACTION_TIMEOUT_MESSAGE)), ONLINE_ACTION_TIMEOUT_MS);
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) {
+      globalThis.clearTimeout(timeoutId);
+    }
+  });
 }

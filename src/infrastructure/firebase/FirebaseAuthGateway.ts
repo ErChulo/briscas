@@ -1,22 +1,26 @@
 import {
   GoogleAuthProvider,
-  signInAnonymously,
+  signInAnonymously as firebaseSignInAnonymously,
   signInWithPopup,
   updateProfile,
+  type Auth,
   type User,
 } from 'firebase/auth';
 import type { AuthGateway, AuthenticatedPlayer } from '../../application/ports/AuthGateway';
 import { getFirebaseAuth } from './firebaseApp';
 
+const AUTH_RETRY_AFTER_MS = 10_000;
+let pendingAnonymousSignIn: { readonly startedAt: number; readonly promise: Promise<User> } | null = null;
+
 export class FirebaseAuthGateway implements AuthGateway {
   public async signInAnonymously(displayName = 'Jugador'): Promise<AuthenticatedPlayer> {
     const auth = getFirebaseAuth();
-    const credential = await signInAnonymously(auth);
-    if (displayName && credential.user.displayName !== displayName) {
-      await updateProfile(credential.user, { displayName });
+    const user = auth.currentUser ?? await signInOnce(auth);
+    if (displayName && user.displayName !== displayName) {
+      await updateProfile(user, { displayName });
     }
 
-    return this.fromUser(credential.user, displayName);
+    return this.fromUser(user, displayName);
   }
 
   public async signInWithGoogle(): Promise<AuthenticatedPlayer> {
@@ -38,4 +42,22 @@ export class FirebaseAuthGateway implements AuthGateway {
       isAnonymous: user.isAnonymous,
     };
   }
+}
+
+function signInOnce(auth: Auth): Promise<User> {
+  const now = Date.now();
+  if (pendingAnonymousSignIn && now - pendingAnonymousSignIn.startedAt <= AUTH_RETRY_AFTER_MS) {
+    return pendingAnonymousSignIn.promise;
+  }
+
+  const promise = firebaseSignInAnonymously(auth)
+    .then((credential) => credential.user)
+    .finally(() => {
+      if (pendingAnonymousSignIn?.promise === promise) {
+        pendingAnonymousSignIn = null;
+      }
+    });
+
+  pendingAnonymousSignIn = { startedAt: now, promise };
+  return promise;
 }
