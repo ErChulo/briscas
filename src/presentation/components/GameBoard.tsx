@@ -61,7 +61,6 @@ export function GameBoard({
   const previousHands = useRef<HandSnapshot>({});
   const previousTrumpCard = useRef(state.trumpCard);
   const [capturingTrick, setCapturingTrick] = useState<AnimatedTrick | null>(null);
-  const [showFinalResult, setShowFinalResult] = useState(false);
   const [swapNotification, setSwapNotification] = useState<string | null>(null);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
   const [openScoreStatsKey, setOpenScoreStatsKey] = useState<string | null>(null);
@@ -92,15 +91,7 @@ export function GameBoard({
   const resultText = state.status === GameStatus.Ended ? resultLabel(state) : null;
   const finalScores = state.status === GameStatus.Ended ? finalScoreRows(state) : [];
   const displayedPlays = capturingTrick?.plays ?? state.currentTrick.plays;
-
-  useEffect(() => {
-    if (state.status === GameStatus.Playing) {
-      setShowFinalResult(false); // eslint-disable-line react-hooks/set-state-in-effect -- reset derived state on round change
-    } else if (state.status === GameStatus.Ended) {
-      // Show result card immediately (smooth CSS fade-in handles the transition).
-      setShowFinalResult(true); // eslint-disable-line react-hooks/set-state-in-effect -- game ended
-    }
-  }, [state.status]);
+  const showFinalResult = state.status === GameStatus.Ended;
 
   useEffect(() => {
     const prev = previousTrumpCard.current;
@@ -373,13 +364,9 @@ export function GameBoard({
     );
     const targetRect = (target ?? tableAreaRef.current).getBoundingClientRect();
 
-    const isLastTrick = state.status === GameStatus.Ended;
     const timeline = gsap.timeline({
       onComplete: () => {
         setCapturingTrick((current) => (current?.version === capturingTrick.version ? null : current));
-        if (isLastTrick) {
-          setShowFinalResult(true);
-        }
       },
     });
 
@@ -555,32 +542,6 @@ export function GameBoard({
           ) : null}
         </div>
 
-        {state.status === GameStatus.Ended && showFinalResult ? (
-          <section className="final-result-card panel" aria-live="polite" aria-label="Resultado final">
-            <p className="eyebrow">Resultado final</p>
-            <h2>{resultText}</h2>
-            <dl>
-              {finalScores.map((row) => (
-                <div key={row.ownerId} className={row.winning ? 'is-winner' : ''}>
-                  <dt>{row.label}</dt>
-                  <dd>{row.score} pts</dd>
-                </div>
-              ))}
-            </dl>
-            <div className="final-result-actions">
-              <button type="button" onClick={openScoreStats}>
-                Ver grafica
-              </button>
-              <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={() => void onReset()}>
-                Nueva ronda
-              </button>
-              <button type="button" className="secondary" onClick={onLeave}>
-                Menú
-              </button>
-            </div>
-          </section>
-        ) : null}
-
         <div className="opponent-row">
           {opponents.map((player) => (
             <OpponentHand key={player.id} player={player} active={state.currentPlayerId === player.id} />
@@ -668,7 +629,7 @@ export function GameBoard({
       </section>
       )}
 
-      {state.status === GameStatus.Ended && showFinalResult ? (
+      {showFinalResult ? (
         <section className="final-result-card panel" aria-live="polite" aria-label="Resultado final">
           <p className="eyebrow">Resultado final</p>
           <h2>{resultText}</h2>
