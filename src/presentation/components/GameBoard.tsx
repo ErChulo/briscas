@@ -429,11 +429,25 @@ export function GameBoard({
             </div>
           </div>
 
-          {gridPositions.filter((p) => p.position === 'across').map((p) => (
-            <div className="player-zone-4p player-zone-4p--top" key={p.player.id}>
-              <OpponentHand player={p.player} active={state.currentPlayerId === p.player.id} />
-            </div>
-          ))}
+          <div className="opponents-bar-4p">
+            {gridPositions.filter((p) => p.position === 'across').map((p) => (
+              <div className="player-zone-4p player-zone-4p--top" key={p.player.id}>
+                <OpponentHand player={p.player} active={state.currentPlayerId === p.player.id} />
+              </div>
+            ))}
+
+            {gridPositions.filter((p) => p.position === 'left').map((p) => (
+              <div className="player-zone-4p player-zone-4p--left" key={p.player.id}>
+                <OpponentHand player={p.player} active={state.currentPlayerId === p.player.id} />
+              </div>
+            ))}
+
+            {gridPositions.filter((p) => p.position === 'right').map((p) => (
+              <div className="player-zone-4p player-zone-4p--right" key={p.player.id}>
+                <OpponentHand player={p.player} active={state.currentPlayerId === p.player.id} />
+              </div>
+            ))}
+          </div>
 
           <div className="trick-zone-4p" aria-label="Baza actual" ref={trickZoneRef}>
             {displayedPlays.length === 0 ? <p>La baza está vacía.</p> : null}
@@ -449,18 +463,6 @@ export function GameBoard({
               </div>
             ))}
           </div>
-
-          {gridPositions.filter((p) => p.position === 'left').map((p) => (
-            <div className="player-zone-4p player-zone-4p--left" key={p.player.id}>
-              <OpponentHand player={p.player} active={state.currentPlayerId === p.player.id} />
-            </div>
-          ))}
-
-          {gridPositions.filter((p) => p.position === 'right').map((p) => (
-            <div className="player-zone-4p player-zone-4p--right" key={p.player.id}>
-              <OpponentHand player={p.player} active={state.currentPlayerId === p.player.id} />
-            </div>
-          ))}
 
           <section className="hand-panel-4p" aria-label={`Mano de ${viewPlayer.displayName}`} data-player-target={viewPlayer.id}>
             <div className="hand-row">
