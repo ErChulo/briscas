@@ -75,7 +75,7 @@ describe('Player abandonment & heartbeat', () => {
     expect(second).toBe(state);
   });
 
-  it('updatePlayerHeartbeat advances lastSeenAt and bumps version', () => {
+  it('updatePlayerHeartbeat advances lastSeenAt without bumping version', () => {
     const engine = new GameEngine();
     const state = fourPlayerStartedState();
     const baselineVersion = state.version;
@@ -83,7 +83,8 @@ describe('Player abandonment & heartbeat', () => {
     const stamped = engine.updatePlayerHeartbeat(state, 'p4', 500);
 
     expect(stamped.players.find((player) => player.id === 'p4')?.lastSeenAt).toBe(500);
-    expect(stamped.version).toBe(baselineVersion + 1);
+    // Heartbeat must not increment version so it never collides with game-action versions.
+    expect(stamped.version).toBe(baselineVersion);
   });
 
   it('Player.isStale flags older-than-grace players and ignores those already abandoned', () => {

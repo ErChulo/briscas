@@ -32,7 +32,15 @@ export class PlayCardUseCase {
 
   public async execute(command: PlayCardCommand, currentState?: GameState): Promise<GameState> {
     if (currentState) {
-      await this.repository.updateGame({ state: currentState });
+      // Stamp the current player's lastSeenAt so the optimistic setDoc never
+      // regresses the heartbeat's update — preventing the opponent's abandonment
+      // detector from falsely declaring this player stale.
+      const now = this.clock.now();
+      const players = currentState.players.map((player) =>
+        player.id === command.playerId ? player.withLastSeen(Math.max(player.lastSeenAt, now)) : player,
+      );
+      const stamped: GameState = { ...currentState, players, updatedAt: now };
+      await this.repository.updateGame({ state: stamped });
       return currentState;
     }
 
