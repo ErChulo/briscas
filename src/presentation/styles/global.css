@@ -438,10 +438,10 @@ select {
   grid-template-columns: 0.5fr 1fr 0.5fr;
   grid-template-rows: auto 1.2fr 1.2fr auto;
   grid-template-areas:
-    "deck-zone   across-zone  deck-zone"
-    "left-zone   trick-zone   right-zone"
-    "left-zone   trick-zone   right-zone"
-    "left-zone   hand-zone    right-zone";
+    ".            across-zone   deck-zone"
+    "left-zone    trick-zone    right-zone"
+    "left-zone    trick-zone    right-zone"
+    "left-zone    hand-zone     right-zone";
 }
 
 .deck-trump-zone-4p {
@@ -449,36 +449,45 @@ select {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
   gap: 0.25rem;
+  padding-top: 0.2rem;
 }
 
 .deck-trump-zone-4p .stock-stack {
   --card-width: var(--card-4p-size);
+  position: relative;
+  width: calc(var(--card-4p-size) * 1.15);
+  height: calc(var(--card-4p-size) * 2.8);
   display: flex;
-  flex-direction: row-reverse;
+  flex-direction: column;
   align-items: center;
-  gap: 0.2rem;
+  gap: 0.15rem;
 }
 
 .deck-trump-zone-4p .trump-card-face {
   position: relative;
-  width: var(--card-4p-size);
-  height: calc(var(--card-4p-size) * 1.575);
-  margin-left: calc(var(--card-4p-size) * -0.35);
+  width: calc(var(--card-4p-size) * 0.7);
+  height: calc(var(--card-4p-size) * 1.1);
   z-index: 1;
+  margin: 0;
+  transform: none;
 }
 
 .deck-trump-zone-4p .stock-deck-card {
-  width: var(--card-4p-size);
-  height: calc(var(--card-4p-size) * 1.575);
+  position: relative;
+  width: calc(var(--card-4p-size) * 0.7);
+  height: calc(var(--card-4p-size) * 1.1);
+  left: auto;
+  top: auto;
+  transform: none;
 }
 
 .deck-trump-zone-4p .trump-label {
-  font-size: 0.65rem;
+  font-size: 0.55rem;
   color: var(--copper-light);
   text-align: center;
-  max-width: calc(var(--card-4p-size) * 2);
+  max-width: calc(var(--card-4p-size) * 1.2);
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -487,14 +496,14 @@ select {
 .deck-trump-zone-4p .stock-actions-4p {
   display: flex;
   flex-direction: column;
-  gap: 0.2rem;
+  gap: 0.15rem;
   width: 100%;
-  max-width: calc(var(--card-4p-size) * 2.2);
+  max-width: calc(var(--card-4p-size) * 1.2);
 }
 
 .deck-trump-zone-4p .stock-actions-4p button {
-  font-size: 0.55rem;
-  padding: 0.2rem 0.4rem;
+  font-size: 0.45rem;
+  padding: 0.15rem 0.3rem;
   white-space: nowrap;
 }
 
