@@ -5,6 +5,12 @@ import { PlayCardUseCase } from '../../application/use-cases/PlayCardUseCase';
 import { ResetGameUseCase } from '../../application/use-cases/ResetGameUseCase';
 import { StartGameUseCase } from '../../application/use-cases/StartGameUseCase';
 import { SwapSevenUseCase } from '../../application/use-cases/SwapSevenUseCase';
+import { HeartbeatUseCase } from '../../application/use-cases/HeartbeatUseCase';
+import { MarkPlayerAbandonedUseCase } from '../../application/use-cases/MarkPlayerAbandonedUseCase';
+import {
+  ABANDONMENT_GRACE_MS,
+  HEARTBEAT_INTERVAL_MS,
+} from '../../application/onlineConfig';
 import type { GameRepository, OpenGameSummary } from '../../application/ports/GameRepository';
 import { SystemClock } from '../../application/services/Clock';
 import { BrowserIdGenerator } from '../../application/services/IdGenerator';
@@ -12,6 +18,7 @@ import { Card } from '../../domain/cards/Card';
 import { GameEngine } from '../../domain/game/GameEngine';
 import type { GameState } from '../../domain/game/GameState';
 import { GameStatus, GameVariant } from '../../domain/game/Types';
+import type { PlayerId } from '../../domain/game/Types';
 import type { TrumpSwapRank } from '../../domain/rules/RulesEngine';
 import { BriscasRules } from '../../domain/rules/BriscasRules';
 import { StandardTrickResolver } from '../../domain/rules/TrickResolver';
@@ -40,6 +47,8 @@ interface UseCases {
   readonly playCard: PlayCardUseCase;
   readonly swapSeven: SwapSevenUseCase;
   readonly resetGame: ResetGameUseCase;
+  readonly heartbeat: HeartbeatUseCase;
+  readonly markAbandoned: MarkPlayerAbandonedUseCase;
 }
 
 export function useGameController() {
@@ -86,6 +95,75 @@ export function useGameController() {
   }, []);
 
   useEffect(() => () => unsubscribe.current?.(), []);
+
+  const getOnlineRepository = (): GameRepository => {
+    onlineRepository.current ??= new FirestoreGameRepository();
+    return onlineRepository.current;
+  };
+
+  const getOnlineUseCases = (): UseCases => {
+    onlineUseCases.current ??= makeUseCases(getOnlineRepository());
+    return onlineUseCases.current;
+  };
+
+  const activeUseCases = (): UseCases => (mode === 'online' ? getOnlineUseCases() : localContext.useCases);
+
+  const withActiveOnlineTimeout = <T>(promise: Promise<T>): Promise<T> =>
+    mode === 'online' ? withOnlineTimeout(promise) : promise;
+
+  // Online-mode heartbeat: bump our own lastSeenAt every HEARTBEAT_INTERVAL_MS so
+  // other participants can detect a silent drop. Runs only while we are an active
+  // player inside a started game; offline / local play skips it entirely.
+  const activeGameId = mode === 'online' && state?.status === GameStatus.Playing ? state.gameId : null;
+  useEffect(() => {
+    if (!activeGameId) {
+      return;
+    }
+
+    const useCases = getOnlineUseCases();
+    const gameId = activeGameId;
+    const playerId: PlayerId = currentPlayer.id;
+    const timer = window.setInterval(() => {
+      void useCases.heartbeat.execute({ gameId, playerId }).catch(() => undefined);
+    }, HEARTBEAT_INTERVAL_MS);
+
+    return () => window.clearInterval(timer);
+    // `getOnlineUseCases` is a stable const arrow function that returns a
+    // cached value; intentionally omitted from deps to avoid resetting the
+    // interval on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeGameId, currentPlayer.id]);
+
+  // Online-mode abandonment detection: on every snapshot, scan the player list
+  // and pick the stalest participant. If anyone is past the grace window and the
+  // game is still playing, declare them abandoned through a transaction so the
+  // race resolves safely even if two clients spot the drop simultaneously.
+  useEffect(() => {
+    if (mode !== 'online' || !state || state.status !== GameStatus.Playing) {
+      return;
+    }
+
+    const useCases = getOnlineUseCases();
+    const now = Date.now();
+    const stale = state.players
+      .filter((player) => player.id !== currentPlayer.id && player.abandonedAt === null)
+      .filter((player) => player.isStale(now, ABANDONMENT_GRACE_MS));
+    if (stale.length === 0) {
+      return;
+    }
+
+    const target = stale.reduce((left, right) =>
+      left.lastSeenAt - right.lastSeenAt < 0 ? left : right,
+    );
+
+    void useCases.markAbandoned
+      .execute({ gameId: state.gameId, playerId: target.id, reportedBy: currentPlayer.id })
+      .catch(() => undefined);
+    // `getOnlineUseCases` is a stable const arrow function that returns a
+    // cached value; intentionally omitted from deps so the detection scan
+    // runs only when status/version/player identity actually changes.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentPlayer.id, mode, state]);
 
   useEffect(() => {
     if (mode !== 'menu' || !firebaseConfigured) {
@@ -316,24 +394,6 @@ export function useGameController() {
     setState(snapshot);
   }
 
-  function activeUseCases(): UseCases {
-    return mode === 'online' ? getOnlineUseCases() : localContext.useCases;
-  }
-
-  function withActiveOnlineTimeout<T>(promise: Promise<T>): Promise<T> {
-    return mode === 'online' ? withOnlineTimeout(promise) : promise;
-  }
-
-  function getOnlineRepository(): GameRepository {
-    onlineRepository.current ??= new FirestoreGameRepository();
-    return onlineRepository.current;
-  }
-
-  function getOnlineUseCases(): UseCases {
-    onlineUseCases.current ??= makeUseCases(getOnlineRepository());
-    return onlineUseCases.current;
-  }
-
   function requireState(): GameState {
     if (!state) {
       throw new Error('No hay partida activa.');
@@ -443,6 +503,8 @@ function makeUseCases(repository: GameRepository): UseCases {
     playCard: new PlayCardUseCase(repository, engine, ids, clock),
     swapSeven: new SwapSevenUseCase(repository, engine, ids, clock),
     resetGame: new ResetGameUseCase(repository, engine, ids, clock),
+    heartbeat: new HeartbeatUseCase(repository, engine, clock),
+    markAbandoned: new MarkPlayerAbandonedUseCase(repository, engine, ids, clock),
   };
 }
 

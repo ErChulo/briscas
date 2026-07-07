@@ -118,6 +118,8 @@ describe('Game engine rules', () => {
       roundNumber: 1,
       deckSeed: 10,
       winnerIds: [],
+      abandonedPlayerIds: [],
+      loserIds: [],
       version: 1,
       createdAt: 1,
       updatedAt: 2,
@@ -219,13 +221,14 @@ function swapState({ trumpCard, handCard }: { readonly trumpCard: Card; readonly
     scores: { p1: 0, p2: 0 },
     scoreHistory: [{ trickIndex: 0, scores: { p1: 0, p2: 0 } }],
     roundNumber: 1,
-    deckSeed: 10,
-    winnerIds: [],
-    version: 1,
-    createdAt: 1,
-    updatedAt: 2,
-  };
-}
+    deckSeed: 10,      winnerIds: [],
+      abandonedPlayerIds: [],
+      loserIds: [],
+      version: 1,
+      createdAt: 1,
+      updatedAt: 2,
+    };
+  }
 
 function endedState(scores: Record<string, number>, includeCardInHand: boolean): GameState {
   const trumpCard = new Card(Suit.Copa, 4);
@@ -250,10 +253,11 @@ function endedState(scores: Record<string, number>, includeCardInHand: boolean):
     scores,
     scoreHistory: [{ trickIndex: 0, scores }],
     roundNumber: 1,
-    deckSeed: 10,
-    winnerIds: [],
-    version: 1,
-    createdAt: 1,
-    updatedAt: 2,
-  };
-}
+    deckSeed: 10,      winnerIds: [],
+      abandonedPlayerIds: [],
+      loserIds: [],
+      version: 1,
+      createdAt: 1,
+      updatedAt: 2,
+    };
+  }

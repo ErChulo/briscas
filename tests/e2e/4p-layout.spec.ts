@@ -15,59 +15,58 @@ test.describe('4P game board layout', () => {
     // Check if we can see the game board
     const tableArea = page.locator('.table-area--4p');
     if (await tableArea.isVisible()) {
-      // Get computed grid template
-      const gridStyles = await tableArea.evaluate((el) => {
+      // New layout positions the four seats absolutely.
+      const layout = await tableArea.evaluate((el) => {
         const style = window.getComputedStyle(el);
         return {
           display: style.display,
-          gridTemplateAreas: style.gridTemplateAreas,
-          gridTemplateColumns: style.gridTemplateColumns,
-          gridTemplateRows: style.gridTemplateRows,
+          position: style.position,
+          overflow: style.overflow,
+          cardSize: style.getPropertyValue('--card-4p-size').trim(),
         };
       });
 
-      console.log('Grid display:', gridStyles.display);
-      console.log('Grid template areas:', gridStyles.gridTemplateAreas);
-      console.log('Grid template columns:', gridStyles.gridTemplateColumns);
-      console.log('Grid template rows:', gridStyles.gridTemplateRows);
+      console.log('Table area:', layout);
 
-      // Verify grid is valid (has 4 rows and 3 columns)
-      expect(gridStyles.display).toBe('grid');
-      expect(gridStyles.gridTemplateAreas).toContain('across-zone');
-      expect(gridStyles.gridTemplateAreas).toContain('deck-zone');
-      expect(gridStyles.gridTemplateAreas).toContain('trick-zone');
-      expect(gridStyles.gridTemplateAreas).toContain('left-zone');
-      expect(gridStyles.gridTemplateAreas).toContain('right-zone');
-      expect(gridStyles.gridTemplateAreas).toContain('hand-zone');
+      expect(layout.display).not.toBe('none');
+      expect(layout.position).toBe('relative');
+      expect(layout.overflow).toBe('hidden');
+      expect(layout.cardSize).not.toBe('');
 
-      // Verify no overlap between deck-zone and across-zone
-      // (deck-zone should appear only once in the template)
-      const areas = gridStyles.gridTemplateAreas;
-      const deckMatches = areas.match(/deck-zone/g);
-      expect(deckMatches?.length).toBe(1); // deck-zone should appear exactly once
+      // Trick center is centered inside the table
+      const trickCenter = page.locator('.trick-center-4p');
+      await expect(trickCenter).toBeVisible();
+      const trickStyles = await trickCenter.evaluate((el) => {
+        const style = window.getComputedStyle(el);
+        return { position: style.position, display: style.display };
+      });
+      expect(trickStyles.position).toBe('absolute');
+      expect(trickStyles.display).toBe('grid');
 
-      // Check bounding boxes don't overlap
-      const deckZone = page.locator('.deck-trump-zone-4p');
-      const acrossZone = page.locator('.player-zone-4p--top');
-      const trickZone = page.locator('.trick-zone-4p');
+      // All four seats are absolutely positioned.
+      for (const side of ['top', 'left', 'right', 'bottom']) {
+        const seat = page.locator(`.seat-4p--${side}`);
+        await expect(seat).toBeAttached();
+        const seatStyles = await seat.evaluate((el) => {
+          const style = window.getComputedStyle(el);
+          return { position: style.position, transform: style.transform };
+        });
+        expect(seatStyles.position).toBe('absolute');
+        expect(seatStyles.transform).not.toBe('none');
+      }
 
-      if (await deckZone.isVisible()) {
-        const deckBox = await deckZone.boundingBox();
-        const acrossBox = await acrossZone.isVisible() ? await acrossZone.boundingBox() : null;
-        const trickBox = await trickZone.boundingBox();
-
-        console.log('Deck zone:', deckBox);
-        console.log('Across zone:', acrossBox);
-        console.log('Trick zone:', trickBox);
-
-        // Deck should not overlap with trick zone
-        if (deckBox && trickBox) {
-          const noOverlap =
-            deckBox.x + deckBox.width <= trickBox.x ||
-            trickBox.x + trickBox.width <= deckBox.x ||
-            deckBox.y + deckBox.height <= trickBox.y ||
-            trickBox.y + trickBox.height <= deckBox.y;
-          expect(noOverlap).toBeTruthy();
+      // Trick cards and owner cards share the same card height — the equal-size
+      // invariant. If these diverge the layout has regressed.
+      const trickCard = trickCenter.locator('.played-card--4p .card-view').first();
+      const ownerCard = page.locator('.owner-hand-4p .card-view').first();
+      if (await trickCard.isVisible() && await ownerCard.isVisible()) {
+        const trickSize = await trickCard.boundingBox();
+        const ownerSize = await ownerCard.boundingBox();
+        if (trickSize && ownerSize) {
+          const widthEqual = Math.abs(trickSize.width - ownerSize.width) < 1;
+          const heightEqual = Math.abs(trickSize.height - ownerSize.height) < 1;
+          expect(widthEqual).toBe(true);
+          expect(heightEqual).toBe(true);
         }
       }
 

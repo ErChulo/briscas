@@ -12,6 +12,8 @@ export class Player {
     public readonly capturedTricks = 0,
     public readonly teamId: TeamId | null = null,
     public readonly connected = true,
+    public readonly lastSeenAt: number = 0,
+    public readonly abandonedAt: number | null = null,
   ) {}
 
   public withHand(hand: Hand): Player {
@@ -24,6 +26,8 @@ export class Player {
       this.capturedTricks,
       this.teamId,
       this.connected,
+      this.lastSeenAt,
+      this.abandonedAt,
     );
   }
 
@@ -37,6 +41,8 @@ export class Player {
       this.capturedTricks,
       this.teamId,
       this.connected,
+      this.lastSeenAt,
+      this.abandonedAt,
     );
   }
 
@@ -50,6 +56,46 @@ export class Player {
       this.capturedTricks + 1,
       this.teamId,
       this.connected,
+      this.lastSeenAt,
+      this.abandonedAt,
     );
+  }
+
+  public withLastSeen(timestampMs: number): Player {
+    return new Player(
+      this.id,
+      this.displayName,
+      this.seatIndex,
+      this.hand,
+      this.score,
+      this.capturedTricks,
+      this.teamId,
+      this.connected,
+      timestampMs,
+      this.abandonedAt,
+    );
+  }
+
+  public withAbandoned(timestampMs: number): Player {
+    return new Player(
+      this.id,
+      this.displayName,
+      this.seatIndex,
+      this.hand,
+      this.score,
+      this.capturedTricks,
+      this.teamId,
+      this.connected,
+      this.lastSeenAt,
+      timestampMs,
+    );
+  }
+
+  /** True when the player's last server heartbeat is older than the grace window. */
+  public isStale(nowMs: number, thresholdMs: number): boolean {
+    if (this.abandonedAt !== null) {
+      return false;
+    }
+    return nowMs - this.lastSeenAt > thresholdMs;
   }
 }

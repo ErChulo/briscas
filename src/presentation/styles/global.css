@@ -431,134 +431,244 @@ select {
 }
 
 /* ── 4-player layout ─────────────────────────────────────────── */
+/*
+ * Real-table look: the device owner sits at the bottom, three opponents peek
+ * in from the top / left / right edges. The trick lives in the center, with
+ * the trump card half-clipped off the bottom-right corner. On small viewports
+ * the opponents can spill 50-75% beyond the edge — every card keeps the
+ * --card-4p-size value, so the deal stays uniform across hands.
+ */
 
 .table-area--4p {
-  --card-4p-size: clamp(4.5rem, min(12vw, 10vh), 6rem);
+  --card-4p-size: clamp(3.4rem, min(11vw, 9vh), 4.6rem);
+  --card-4p-ar: 1.575;            /* height = width * this */
+  --peek: 55%;                    /* how much each opponent hand spills past the viewport */
+  --turn-ring: 2px solid var(--gold);
 
-  display: grid;
-  grid-template-areas:
-    "opponents"
-    "trick"
-    "hand";
-  grid-template-columns: 1fr;
-  grid-template-rows: auto 1fr auto;
-  overflow: visible;
-}
-
-/* ── deck + trump (hidden on phone) ───────────────────────── */
-
-.deck-trump-zone-4p {
-  display: none;
-}
-
-/* ── opponents bar ─────────────────────────────────────────── */
-
-.opponents-bar-4p {
-  grid-area: opponents;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 0.25rem;
-  padding: 0.15rem 0.3rem;
-  background: rgb(0 0 0 / 20%);
-  border-radius: 0.5rem;
-}
-
-.table-area--4p .player-zone-4p--top,
-.table-area--4p .player-zone-4p--left,
-.table-area--4p .player-zone-4p--right {
-  margin: 0;
-}
-
-.table-area--4p .opponent-hand {
-  display: flex;
-  flex-direction: row;
-  align-items: center;
-  gap: 0.3rem;
-  padding: 0.1rem 0.3rem;
-  border-radius: 0.35rem;
-  background: rgb(255 255 255 / 6%);
-}
-
-.table-area--4p .opponent-hand.is-active {
-  outline: 1.5px solid var(--gold);
-}
-
-.table-area--4p .opponent-hand strong {
-  display: inline;
-  font-size: 0.6rem;
-  color: var(--gold);
-  white-space: nowrap;
-  max-width: 5rem;
+  position: relative;
   overflow: hidden;
-  text-overflow: ellipsis;
+  isolation: isolate;
+
+  display: block;
+  padding: clamp(0.25rem, 1vw, 0.6rem);
 }
 
-.table-area--4p .opponent-hand.is-active strong {
-  color: #fff;
+.table-area--4p .card-back,
+.table-area--4p .card-view,
+.table-area--4p .played-card--4p .card-view,
+.table-area--4p .trump-peek-4p .card-view {
+  width: var(--card-4p-size);
+  height: calc(var(--card-4p-size) * var(--card-4p-ar));
 }
 
 .table-area--4p .mini-hand {
   display: flex;
   flex-wrap: nowrap;
   gap: 1px;
+  justify-content: center;
+  align-items: center;
 }
 
 .table-area--4p .mini-hand > .card-back {
-  width: 1rem;
-  height: 1.4rem;
   border-radius: 0.12rem;
 }
 
-/* ── trick zone ────────────────────────────────────────────── */
+/* Seat wrappers: top / left / right spill past the viewport; bottom stays
+   fully in-frame because that is the device owner's hand. */
 
-.trick-zone-4p {
-  grid-area: trick;
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  align-content: center;
-  gap: var(--card-gap);
-  min-height: 0;
-  min-width: 0;
+.seat-4p {
+  position: absolute;
+  z-index: 2;
+  pointer-events: auto;
 }
 
-.trick-zone-4p .played-card {
+.seat-4p--top {
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, calc(-1 * var(--peek)));
+}
+
+.seat-4p--left {
+  top: 50%;
+  left: 0;
+  transform: translate(calc(-1 * var(--peek)), -50%);
+}
+
+.seat-4p--right {
+  top: 50%;
+  right: 0;
+  transform: translate(var(--peek), -50%);
+}
+
+.seat-4p--bottom {
+  bottom: clamp(0.4rem, 1.6vh, 0.8rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 5;
+}
+
+.seat-4p__inner {
+  display: grid;
+  justify-items: center;
+  gap: 0.25rem;
+  padding: 0.25rem 0.4rem 0.35rem;
+  border-radius: 0.6rem;
+  background: rgb(0 0 0 / 25%);
+  backdrop-filter: blur(4px);
+}
+
+.seat-4p__inner--top    { grid-auto-flow: row; }
+.seat-4p__inner--left   { transform-origin: right center; }
+.seat-4p__inner--right  { transform-origin: left center; }
+
+.seat-4p__name {
+  font-size: 0.6rem;
+  font-weight: 800;
+  color: var(--gold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  max-width: 6rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.seat-4p__badge {
+  font-size: 0.55rem;
+  color: var(--danger);
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+/* Center trick + trump peek */
+
+.trick-center-4p {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  z-index: 3;
+}
+
+.trick-center-4p .played-card--4p {
   position: relative;
+  display: grid;
+  justify-items: center;
+  transform-origin: 50% 50%;
+  z-index: 2;
 }
 
-.trick-zone-4p .played-card .card-view {
+.trick-center-4p .played-card--4p.is-active {
+  animation: brisca-turn-pop 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+.trick-empty-hint {
+  margin: 0;
+  color: #c2b988;
+  font-size: 0.7rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.6;
+}
+
+.trump-peek-4p {
+  position: absolute;
+  right: clamp(0.4rem, 1.6vw, 1rem);
+  bottom: 0;
+  z-index: 4;
   width: var(--card-4p-size);
-  height: calc(var(--card-4p-size) * 1.575);
+  /* Half-height wrapper fixed to the lower edge of the table; the card sits in
+     the top half so exactly half of the trump card peeks above the viewport. */
+  height: calc(var(--card-4p-size) * var(--card-4p-ar) / 2);
+  overflow: hidden;
+  border-radius: 0.45rem 0.45rem 0 0;
+  box-shadow: 0 0 1.4rem rgb(245 197 66 / 18%);
+  pointer-events: none;
 }
 
-.trick-zone-4p .played-card span {
-  display: none;
+.trump-peek-4p::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 100%;
+  background: linear-gradient(180deg, transparent, rgb(0 0 0 / 45%));
+  pointer-events: none;
+  z-index: 6;
 }
 
-/* ── hand zone ─────────────────────────────────────────────── */
-
-.hand-panel-4p {
-  grid-area: hand;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 0.15rem;
-  padding: 0.15rem;
-  min-height: 0;
-}
-
-.hand-panel-4p .hand-row {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--card-gap);
-}
-
-.hand-panel-4p .card-view {
+.trump-peek-4p > * {
+  position: absolute;
+  inset: 0 0 auto 0;
   width: var(--card-4p-size);
-  height: calc(var(--card-4p-size) * 1.575);
+  height: calc(var(--card-4p-size) * var(--card-4p-ar));
+}
+
+/* Owner hand sits at the bottom and lays cards out in a single row. */
+
+.owner-hand-4p {
+  display: flex;
+  flex-wrap: nowrap;
+  justify-content: center;
+  gap: var(--hand-card-gap);
+  padding: 0.2rem 0.4rem;
+  background: rgb(0 0 0 / 32%);
+  border-radius: 0.8rem;
+  border: 1px solid var(--panel-border);
+}
+
+/* Active-turn indicator — shared between opponent seats, the owner seat
+   and the trick plays that belong to whoever's turn it is. */
+
+@media (prefers-reduced-motion: no-preference) {
+  .table-area--4p .is-active.seat-4p__inner,
+  .table-area--4p .is-active.seat-4p--bottom,
+  .opponent-hand.is-active {
+    box-shadow: 0 0 0 var(--turn-ring), 0 0 0.8rem var(--gold), 0 0 1.8rem rgb(245 197 66 / 65%);
+    animation: brisca-turn-pulse 1.5s ease-in-out infinite;
+  }
+}
+
+.table-area--4p .is-active.seat-4p__inner,
+.table-area--4p .is-active.seat-4p--bottom,
+.opponent-hand.is-active,
+.seat-4p__inner.is-active {
+  outline: var(--turn-ring);
+  outline-offset: 2px;
+}
+
+.table-area--4p .seat-4p__inner.is-abandoned,
+.table-area--4p .opponent-hand.is-abandoned {
+  filter: grayscale(0.8) brightness(0.55);
+  opacity: 0.6;
+}
+
+.opponent-hand__badge {
+  margin-left: 0.35rem;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: rgb(255 180 168 / 22%);
+  color: var(--danger);
+  font-size: 0.55rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+@keyframes brisca-turn-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 var(--turn-ring), 0 0 0.6rem rgb(245 197 66 / 45%), 0 0 1.2rem rgb(245 197 66 / 22%);
+    transform-origin: center;
+  }
+  50% {
+    box-shadow: 0 0 0 var(--turn-ring), 0 0 1.1rem rgb(245 197 66 / 80%), 0 0 2.4rem rgb(245 197 66 / 38%);
+  }
+}
+
+@keyframes brisca-turn-pop {
+  from { transform: scale(0.86) translateY(-8px); opacity: 0; }
+  to   { transform: scale(1)    translateY(0);     opacity: 1; }
 }
 
 .play-column {
@@ -1853,7 +1963,7 @@ img.card-view {
   }
 
   .opponents-bar-4p {
-    display: none;
+    display: contents;
   }
 
   .player-zone-4p--top,

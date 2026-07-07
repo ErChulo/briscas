@@ -23,6 +23,8 @@ export interface SerializedPlayer {
   readonly capturedTricks: number;
   readonly teamId: string | null;
   readonly connected: boolean;
+  readonly lastSeenAt?: number;
+  readonly abandonedAt?: number | null;
 }
 
 export interface SerializedTrick {
@@ -62,6 +64,8 @@ export interface SerializedGameState {
   readonly deckSeed: number | null;
   readonly deckCount: number;
   readonly winnerIds: readonly string[];
+  readonly abandonedPlayerIds?: readonly string[];
+  readonly loserIds?: readonly string[];
   readonly version: number;
   readonly createdAt: number;
   readonly updatedAt: number;
@@ -95,6 +99,8 @@ export class GameStateMapper {
       capturedTricks: player.capturedTricks,
       teamId: player.teamId,
       connected: player.connected,
+      lastSeenAt: player.lastSeenAt,
+      abandonedAt: player.abandonedAt,
     };
   }
 
@@ -108,6 +114,8 @@ export class GameStateMapper {
       data.capturedTricks,
       data.teamId,
       data.connected,
+      data.lastSeenAt ?? 0,
+      data.abandonedAt ?? null,
     );
   }
 
@@ -151,6 +159,8 @@ export class GameStateMapper {
       deckSeed: state.deckSeed,
       deckCount: state.deck.count,
       winnerIds: state.winnerIds,
+      abandonedPlayerIds: state.abandonedPlayerIds,
+      loserIds: state.loserIds,
       version: state.version,
       createdAt: state.createdAt,
       updatedAt: state.updatedAt,
@@ -179,6 +189,8 @@ export class GameStateMapper {
       roundNumber: data.roundNumber,
       deckSeed: data.deckSeed,
       winnerIds: data.winnerIds,
+      abandonedPlayerIds: data.abandonedPlayerIds ?? [],
+      loserIds: data.loserIds ?? [],
       version: data.version,
       createdAt: data.createdAt,
       updatedAt: data.updatedAt,

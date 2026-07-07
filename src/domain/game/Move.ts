@@ -9,6 +9,8 @@ export enum MoveType {
   SwapSeven = 'SWAP_SEVEN',
   SwapTrump = 'SWAP_TRUMP',
   ResetGame = 'RESET_GAME',
+  /** Records a player being declared abandoned; their team ends up as the loser. */
+  AbandonGame = 'ABANDON_GAME',
 }
 
 /** Auditable player command written to persistence after a state transition. */

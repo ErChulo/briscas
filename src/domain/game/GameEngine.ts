@@ -77,6 +77,8 @@ export class GameEngine {
       roundNumber: 1,
       deckSeed: null,
       winnerIds: [],
+      abandonedPlayerIds: [],
+      loserIds: [],
       version: 0,
       createdAt: input.now,
       updatedAt: input.now,
@@ -139,6 +141,8 @@ export class GameEngine {
       scoreHistory: [{ trickIndex: 0, scores }],
       deckSeed: seed,
       winnerIds: [],
+      abandonedPlayerIds: [],
+      loserIds: [],
       version: state.version + 1,
       updatedAt: now,
     };
@@ -288,7 +292,7 @@ export class GameEngine {
   public resetGame(state: GameState, now: number): GameState {
     const players = this.sortedPlayers(state.players).map(
       (player) =>
-        new Player(player.id, player.displayName, player.seatIndex, new Hand(), 0, 0, player.teamId, player.connected),
+        new Player(player.id, player.displayName, player.seatIndex, new Hand(), 0, 0, player.teamId, player.connected, 0, null),
     );
     const scores = this.initialScores(players);
 
@@ -309,6 +313,71 @@ export class GameEngine {
       dealerSeatIndex: (state.dealerSeatIndex + 1) % Math.max(players.length, 1),
       deckSeed: null,
       winnerIds: [],
+      abandonedPlayerIds: [],
+      loserIds: [],
+      version: state.version + 1,
+      updatedAt: now,
+    };
+  }
+
+  /**
+   * Declares `playerId` abandoned and ends the round. The abandoneer's team (in
+   * 4-player mode) or the abandonee themselves (in 2-player mode) is recorded as
+   * the loser. Only meaningful while the game is in `Playing` status — calling on
+   * an already-ended state is a no-op so concurrent firings stay safe.
+   */
+  public markPlayerAbandoned(state: GameState, playerId: PlayerId, now: number): GameState {
+    if (state.status !== GameStatus.Playing) {
+      return state;
+    }
+
+    const abandoner = state.players.find((player) => player.id === playerId);
+    if (!abandoner || abandoner.abandonedAt !== null) {
+      return state;
+    }
+
+    const players = state.players.map((player) =>
+      player.id === playerId ? player.withAbandoned(now) : player,
+    );
+
+    const losserIds = abandoner.teamId ? [abandoner.teamId] : [abandoner.id];
+    const winnerIds = state.players
+      .filter((player) => player.id !== playerId && (abandoner.teamId ? player.teamId !== abandoner.teamId : true))
+      .map((player) => player.teamId ?? player.id)
+      .filter((id, index, ids) => ids.indexOf(id) === index);
+
+    return {
+      ...state,
+      status: GameStatus.Ended,
+      players,
+      currentTrick: new Trick(null),
+      currentPlayerId: null,
+      trumpCard: null,
+      abandonedPlayerIds: [...state.abandonedPlayerIds, playerId],
+      loserIds: Array.from(new Set([...state.loserIds, ...losserIds])),
+      winnerIds: Array.from(new Set([...state.winnerIds, ...winnerIds])),
+      version: state.version + 1,
+      updatedAt: now,
+    };
+  }
+
+  public updatePlayerHeartbeat(state: GameState, playerId: PlayerId, now: number): GameState {
+    if (state.status !== GameStatus.Playing) {
+      return state;
+    }
+
+    const target = state.players.find((player) => player.id === playerId);
+    if (!target || target.abandonedAt !== null) {
+      return state;
+    }
+
+    const players = state.players.map((player) =>
+      player.id === playerId ? player.withLastSeen(now) : player,
+    );
+
+    return {
+      ...state,
+      players,
       version: state.version + 1,
       updatedAt: now,
     };

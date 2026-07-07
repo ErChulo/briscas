@@ -21,12 +21,16 @@ games/{gameId}
   scores
   roundNumber
   version
+  abandonedPlayerIds
+  loserIds
 
 games/{gameId}/players/{playerId}
   displayName
   seatIndex
   joinedAt through createdAt/update history
   connected
+  lastSeenAt
+  abandonedAt
   hand
   score
   teamId
@@ -62,6 +66,18 @@ The client validates every move before writing. `firestore.rules` provides a bas
 ## Reconnect And Refresh
 
 The presentation hook subscribes to the game document with `onSnapshot` and maps that snapshot directly into `GameState`. Refreshing an online room can restore state by joining or subscribing to the same room code. Old rooms without embedded players fall back to loading player documents.
+
+## Presence And Abandonment
+
+Without server-side Cloud Functions the client cannot rely on Firestore `onDisconnect`, so the game tracks presence through a client-emitted heartbeat.
+
+- Each in-game client runs `HeartbeatUseCase.execute` every **12 seconds**, bumping its own `Player.lastSeenAt`.
+- Any client detecting a remote `Player` whose `lastSeenAt` is older than **45 seconds** invokes `MarkPlayerAbandonedUseCase.execute`.
+- `MarkPlayerAbandonedUseCase` runs through `GameRepository.runTransaction`, so two clients reacting to the same drop converge on a single `Ended` state.
+- The abandonee's team (4-player mode) or the player themselves (2-player mode) is recorded in `GameState.loserIds`; the rest of the room becomes the default winner.
+- Once a game is `Ended` because of abandonment, the host can `ResetGame` to start a fresh round. `resetGame` clears `abandonedPlayerIds` and `loserIds`.
+- Leaving via the **Menú** button only unsubscribes the local client — the local player's `lastSeenAt` then ages out like any silent drop, so other participants quickly trigger the abandonment flow on their behalf.
+- This is intentionally client-only: production hardening should move heartbeat validation and timed disconnection into a Cloud Function so a single malicious client cannot stall the room.
 
 ## Secrecy Limitation
 

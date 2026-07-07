@@ -9,7 +9,14 @@ export interface ScoreHistoryEntry {
   readonly scores: Readonly<Record<string, number>>;
 }
 
-/** Complete framework-agnostic game state. */
+/**
+ * Complete framework-agnostic game state.
+ *
+ * `abandonedPlayerIds` records every player that was declared abandoned and ended the
+ * current round. `loserIds` then names the team(s) or player(s) that lost as a
+ * consequence — in 2-player mode that is the abandoning player, in 4-player mode that
+ * is the abandoning player's team.
+ */
 export interface GameState {
   readonly gameId: GameId;
   readonly status: GameStatus;
@@ -29,6 +36,8 @@ export interface GameState {
   readonly roundNumber: number;
   readonly deckSeed: number | null;
   readonly winnerIds: readonly string[];
+  readonly abandonedPlayerIds: readonly string[];
+  readonly loserIds: readonly string[];
   readonly version: number;
   readonly createdAt: number;
   readonly updatedAt: number;

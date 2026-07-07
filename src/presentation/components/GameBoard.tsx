@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react';
 import { gsap } from 'gsap';
 import { BriscasRules } from '../../domain/rules/BriscasRules';
 import type { TrumpSwapRank } from '../../domain/rules/RulesEngine';
@@ -6,6 +6,10 @@ import { GameStatus } from '../../domain/game/Types';
 import type { GameState } from '../../domain/game/GameState';
 import type { Player } from '../../domain/game/Player';
 import type { PlayedCard } from '../../domain/game/Trick';
+import {
+  ABANDONMENT_GRACE_MS,
+  STALE_TICK_INTERVAL_MS,
+} from '../../application/onlineConfig';
 import { CardView } from './CardView';
 import { Scoreboard } from './Scoreboard';
 import { StatusBanner } from './StatusBanner';
@@ -61,6 +65,13 @@ export function GameBoard({
   const [swapNotification, setSwapNotification] = useState<string | null>(null);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
   const [openScoreStatsKey, setOpenScoreStatsKey] = useState<string | null>(null);
+  // Tick a clock so the 4P "Desconectado…" badge can re-render when the
+  // abandonment grace window elapses, even if no game event fires.
+  const [now, setNow] = useState<number>(() => Date.now());
+  useEffect(() => {
+    const timer = window.setInterval(() => setNow(Date.now()), STALE_TICK_INTERVAL_MS);
+    return () => window.clearInterval(timer);
+  }, []);
   const viewPlayer = state.players.find((player) => player.id === viewPlayerId) ?? state.players[0];
   const opponents = state.players.filter((player) => player.id !== viewPlayer.id);
   const fourPlayer = state.players.length > 2;
@@ -159,7 +170,9 @@ export function GameBoard({
 
     const stockCard = tableAreaRef.current.querySelector<HTMLElement>('.stock-deck-card');
     const dealtCards = Array.from(
-      tableAreaRef.current.querySelectorAll<HTMLElement>('.mini-hand > .card-back, .hand-row > .card-view'),
+      tableAreaRef.current.querySelectorAll<HTMLElement>(
+        '.mini-hand > .card-back, .hand-row > .card-view, .owner-hand-4p [data-card-id]',
+      ),
     );
     if (!stockCard || dealtCards.length === 0) {
       return;
@@ -352,7 +365,7 @@ export function GameBoard({
     }
 
     const elements = Array.from(trickZoneRef.current.querySelectorAll<HTMLElement>('.played-card--capturing'));
-    const target = Array.from(tableAreaRef.current.querySelectorAll<HTMLElement>('[data-player-target]')).find(
+    const target = Array.from(tableAreaRef.current.querySelectorAll<HTMLElement>('.seat-4p [data-player-target]')).find(
       (element) => element.dataset.playerTarget === capturingTrick.winnerId,
     );
     const targetRect = (target ?? tableAreaRef.current).getBoundingClientRect();
@@ -413,59 +426,92 @@ export function GameBoard({
         <div className="swap-notification" role="status" aria-live="polite">
           {swapNotification}
         </div>
-      ) : null}
-      {fourPlayer ? (
+      ) : null}          {fourPlayer ? (
         <section className="table-area table-area--4p" aria-label="Mesa de juego" ref={tableAreaRef}>
-          <div className="deck-trump-zone-4p">
-            <div className="stock-stack" aria-label="Mazo y carta de triunfo">
-              {state.trumpCard ? (
-                <div className={`trump-card-face ${state.deck.isEmpty ? 'trump-card-face--ghost' : ''}`}>
-                  <CardView card={state.trumpCard} label={`Triunfo: ${state.trumpCard.toString()}`} />
-                </div>
-              ) : null}
-              <div className={`stock-deck-card ${state.deck.isEmpty ? 'stock-deck-card--empty' : ''}`}>
-                {state.deck.isEmpty ? <span>Mazo vacío</span> : <CardView hidden label="Mazo de cartas" />}
-              </div>
-            </div>
+          <div
+            className={`turn-indicator-4p`}
+            role="status"
+            aria-live="polite"
+            data-turn-owner={state.currentPlayerId ?? ''}
+          >
+            {state.status === GameStatus.Playing ? (
+              <span>
+                Toca: <strong>{activePlayerName}</strong>
+              </span>
+            ) : (
+              <span>
+                {state.abandonedPlayerIds.length > 0 ? 'Partida interrumpida' : 'Esperando…'}
+              </span>
+            )}
+          </div>
+          <div className="seat-4p seat-4p--top" data-seat="2">
+            {gridPositions
+              .filter((p) => p.position === 'across')
+              .map((p) =>
+                renderFourPlayerSeat({
+                  player: p.player,
+                  side: 'top',
+                  active: state.currentPlayerId === p.player.id,
+                  stale: p.player.isStale(now, ABANDONMENT_GRACE_MS),
+                }),
+              )}
           </div>
 
-          <div className="opponents-bar-4p">
-            {gridPositions.filter((p) => p.position === 'across').map((p) => (
-              <div className="player-zone-4p player-zone-4p--top" key={p.player.id}>
-                <OpponentHand player={p.player} active={state.currentPlayerId === p.player.id} />
-              </div>
-            ))}
-
-            {gridPositions.filter((p) => p.position === 'left').map((p) => (
-              <div className="player-zone-4p player-zone-4p--left" key={p.player.id}>
-                <OpponentHand player={p.player} active={state.currentPlayerId === p.player.id} />
-              </div>
-            ))}
-
-            {gridPositions.filter((p) => p.position === 'right').map((p) => (
-              <div className="player-zone-4p player-zone-4p--right" key={p.player.id}>
-                <OpponentHand player={p.player} active={state.currentPlayerId === p.player.id} />
-              </div>
-            ))}
+          <div className="seat-4p seat-4p--left" data-seat="1">
+            {gridPositions
+              .filter((p) => p.position === 'left')
+              .map((p) =>
+                renderFourPlayerSeat({
+                  player: p.player,
+                  side: 'left',
+                  active: state.currentPlayerId === p.player.id,
+                  stale: p.player.isStale(now, ABANDONMENT_GRACE_MS),
+                }),
+              )}
           </div>
 
-          <div className="trick-zone-4p" aria-label="Baza actual" ref={trickZoneRef}>
-            {displayedPlays.length === 0 ? <p>La baza está vacía.</p> : null}
+          <div className="seat-4p seat-4p--right" data-seat="3">
+            {gridPositions
+              .filter((p) => p.position === 'right')
+              .map((p) =>
+                renderFourPlayerSeat({
+                  player: p.player,
+                  side: 'right',
+                  active: state.currentPlayerId === p.player.id,
+                  stale: p.player.isStale(now, ABANDONMENT_GRACE_MS),
+                }),
+              )}
+          </div>
+
+          <div className="trick-center-4p" aria-label="Baza actual" ref={trickZoneRef}>
+            {displayedPlays.length === 0 ? <p className="trick-empty-hint">La baza está vacía.</p> : null}
             {capturingTrick ? <p className="trick-winner-label">Baza para {playerName(state, capturingTrick.winnerId)}</p> : null}
             {displayedPlays.map((play) => (
               <div
                 key={`${capturingTrick?.version ?? 'current'}-${play.playerId}-${play.card.id}`}
-                className={`played-card ${capturingTrick ? 'played-card--capturing' : ''}`}
+                className={`played-card played-card--4p ${capturingTrick ? 'played-card--capturing' : ''} ${
+                  state.currentPlayerId === play.playerId ? 'is-active' : ''
+                }`}
                 data-play-key={playKeyFor(play)}
+                title={playerName(state, play.playerId)}
               >
                 <CardView card={play.card} label={`${playerName(state, play.playerId)} jugó ${play.card.toString()}`} />
-                <span>{playerName(state, play.playerId)}</span>
               </div>
             ))}
           </div>
 
-          <section className="hand-panel-4p" aria-label={`Mano de ${viewPlayer.displayName}`} data-player-target={viewPlayer.id}>
-            <div className="hand-row">
+          {state.trumpCard ? (
+            <div className="trump-peek-4p" aria-hidden="true">
+              <CardView card={state.trumpCard} label={`Triunfo: ${state.trumpCard.toString()}`} />
+            </div>
+          ) : null}
+
+          <section
+            className={`seat-4p seat-4p--bottom ${state.currentPlayerId === viewPlayer.id ? 'is-active' : ''}`}
+            aria-label={`Mano de ${viewPlayer.displayName}`}
+            data-player-target={viewPlayer.id}
+          >
+            <div className="owner-hand-4p">
               {viewPlayer.hand.toArray().map((card) => {
                 const validation = rules.canPlayCard(state, viewPlayer.id, card);
                 return (
@@ -877,8 +923,12 @@ function swapButtonLabel(exchangeRank: TrumpSwapRank): string {
 
 function OpponentHand({ player, active }: { readonly player: Player; readonly active: boolean }) {
   return (
-    <div className={`opponent-hand panel ${active ? 'is-active' : ''}`} data-player-target={player.id}>
+    <div
+      className={`opponent-hand panel ${active ? 'is-active' : ''} ${player.abandonedAt !== null ? 'is-abandoned' : ''}`}
+      data-player-target={player.id}
+    >
       <strong>{player.displayName}</strong>
+      {player.abandonedAt !== null ? <span className="opponent-hand__badge">Abandonó</span> : null}
       <div className="mini-hand" aria-label={`${player.hand.size} cartas ocultas`}>
         {Array.from({ length: player.hand.size }, (_, index) => (
           <CardView key={index} hidden />
@@ -919,6 +969,9 @@ function playerName(state: GameState, playerId: string): string {
 }
 
 function resultLabel(state: GameState): string {
+  if (state.abandonedPlayerIds.length > 0) {
+    return abandonedResultLabel(state);
+  }
   if (state.winnerIds.length === 0) {
     return 'Empate sin ganador declarado.';
   }
@@ -933,4 +986,52 @@ function resultLabel(state: GameState): string {
   });
 
   return `Ganador: ${labels.join(', ')}`;
+}
+
+function abandonedResultLabel(state: GameState): string {
+  const abandoner = state.players.find((player) => state.abandonedPlayerIds.includes(player.id));
+  const winnerId = state.winnerIds[0];
+  if (!abandoner || !winnerId) {
+    return 'Partida interrumpida por abandono.';
+  }
+  const teamPlayers = state.players.filter((player) => player.teamId === winnerId);
+  const winnerLabel = teamPlayers.length > 0
+    ? `Equipo ${winnerId.endsWith('0') ? 'A' : 'B'}`
+    : playerName(state, winnerId);
+  return `${abandoner.displayName} abandonó la sala. Gana ${winnerLabel}.`;
+}
+
+function renderFourPlayerSeat(params: {
+  readonly player: Player;
+  readonly side: 'top' | 'left' | 'right';
+  readonly active: boolean;
+  readonly stale: boolean;
+}): JSX.Element {
+  const { player, side, active, stale } = params;
+  return (
+    <div
+      className={[
+        'seat-4p__inner',
+        `seat-4p__inner--${side}`,
+        active ? 'is-active' : '',
+        player.abandonedAt !== null ? 'is-abandoned' : stale ? 'is-stale' : '',
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      data-player-target={player.id}
+      aria-label={`Mano oculta de ${player.displayName}`}
+    >
+      <div className="seat-4p__name">{player.displayName}</div>
+      <div className="mini-hand" aria-label={`${player.hand.size} cartas ocultas`}>
+        {Array.from({ length: player.hand.size }, (_, index) => (
+          <CardView key={index} hidden />
+        ))}
+      </div>
+      {player.abandonedAt !== null ? (
+        <span className="seat-4p__badge">Abandonó</span>
+      ) : stale ? (
+        <span className="seat-4p__badge seat-4p__badge--warn">Desconectado…</span>
+      ) : null}
+    </div>
+  );
 }
