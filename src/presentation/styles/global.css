@@ -26,10 +26,16 @@
   box-sizing: border-box;
 }
 
+html, body {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+}
+
 body {
   min-width: 320px;
   min-height: 100vh;
-  margin: 0;
   background:
     radial-gradient(circle at 18% 10%, rgb(245 197 66 / 18%), transparent 28rem),
     radial-gradient(circle at 85% 80%, rgb(27 94 32 / 35%), transparent 32rem),
@@ -303,14 +309,16 @@ select {
 
 .game-shell {
   position: relative;
-  overflow-x: hidden;
-  height: 100vh;
-  height: 100dvh;
-  min-height: 100vh;
-  min-height: 100dvh;
   overflow: hidden;
+  width: 100%;
+  height: 100dvh;
   padding: clamp(0.45rem, 1.4vw, 1rem);
   padding-left: max(clamp(0.45rem, 1.4vw, 1rem), 3rem);
+  box-sizing: border-box;
+  padding-top: env(safe-area-inset-top, 0);
+  padding-right: env(safe-area-inset-right, 0);
+  padding-bottom: env(safe-area-inset-bottom, 0);
+  padding-left: max(clamp(0.45rem, 1.4vw, 1rem), 3rem, env(safe-area-inset-left, 0));
 }
 
 .swap-notification {
@@ -476,275 +484,391 @@ select {
 
 /* ── 4-player layout ─────────────────────────────────────────── */
 /*
- * Real-table look: the device owner sits at the bottom, three opponents peek
- * in from the top / left / right edges. The trick lives in the center, with
- * the trump card half-clipped off the bottom-right corner. On small viewports
- * the opponents can spill 50-75% beyond the edge — every card keeps the
- * --card-4p-size value, so the deal stays uniform across hands.
+ * Seat-based layout for the Briscas game table. The four players sit at
+ * N / E / S / W positions. Each hand is positioned so approximately 50% of
+ * the cards are outside the board edge (clipped by overflow:hidden).
+ *
+ * The trick zone uses a symmetric cross layout derived from the card
+ * dimensions, keeping all four played cards visible at once.
+ *
+ * The deck + trump card sit together in the upper-left corner, with the
+ * deck (face-down, horizontal) overlapping the upper half of the trump
+ * card (face-up, vertical).
  */
 
+/* ── Base table area ──────────────────────── */
+
 .table-area--4p {
-  /* All cards in 4P use --card-4p-size for uniform sizing across all seats */
-  --card-4p-size: clamp(4rem, min(10vw, 10vh), 6rem);
+  --card-4p-size: clamp(3.2rem, min(12vw, 8vh), 4.8rem);
   --card-4p-ar: 1.575;
-  --peek: 55%;
   --turn-ring: 2px solid var(--gold);
+
+  --hand-card-width: clamp(48px, 16vw, 68px);
+  --hand-card-height: calc(var(--hand-card-width) * 1.45);
+  --hand-card-gap: clamp(4px, 1.8vw, 8px);
+
+  --trick-card-width: 52px;
+  --trick-card-height: calc(var(--trick-card-width) * 1.45);
+  --trick-gap: 6px;
+  --trick-offset: calc(
+    (var(--trick-card-width) + var(--trick-card-height)) / 2
+    + var(--trick-gap)
+  );
 
   position: relative;
   overflow: hidden;
   isolation: isolate;
-
   display: block;
-  padding: clamp(0.25rem, 1vw, 0.6rem);
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  margin: 0;
+  background:
+    radial-gradient(ellipse at 50% 40%, rgb(255 255 255 / 6%), transparent 55%),
+    repeating-linear-gradient(90deg, transparent 0 2px, rgb(0 0 0 / 4%) 2px 4px),
+    repeating-linear-gradient(0deg, transparent 0 2px, rgb(0 0 0 / 4%) 2px 4px),
+    radial-gradient(ellipse at 40% 30%, var(--felt-light) 0%, var(--felt) 35%, var(--felt-dark) 80%);
+  box-shadow:
+    inset 0 0 0 1px rgb(255 255 255 / 14%),
+    inset 0 0 6rem rgb(0 0 0 / 30%),
+    inset 0 0.25rem 0.5rem rgb(255 255 255 / 6%);
 }
 
-.table-area--4p .card-back,
-.table-area--4p .card-view,
-.table-area--4p .played-card--4p .card-view,
-.table-area--4p .trump-peek-4p .card-view {
-  width: var(--card-4p-size);
-  height: calc(var(--card-4p-size) * var(--card-4p-ar));
-}
+/* ── Turn indicator ────────────────────────── */
 
-.table-area--4p .mini-hand {
-  display: flex;
-  flex-wrap: nowrap;
-  gap: 1px;
-  justify-content: center;
-  align-items: center;
-}
-
-.table-area--4p .mini-hand > .card-back {
-  border-radius: 0.12rem;
-}
-
-/* Left/right side player cards: rotated 90° so the long side faces inward,
-   cards stacked vertically touching by their long edge. */
-.table-area--4p .seat-4p--left .mini-hand,
-.table-area--4p .seat-4p--right .mini-hand {
-  flex-direction: column;
-  gap: 1.5px;
-}
-
-.table-area--4p .seat-4p--left .mini-hand > .card-back,
-.table-area--4p .seat-4p--right .mini-hand > .card-back {
-  transform: rotate(90deg);
-}
-
-/* The top opponent stays horizontal */
-.table-area--4p .seat-4p--top .mini-hand {
-  flex-direction: row;
-}
-
-/* Seat wrappers: top / left / right spill past the viewport; bottom stays
-   fully in-frame because that is the device owner's hand. */
-
-.seat-4p {
+.turn-indicator-4p {
   position: absolute;
-  z-index: 2;
+  top: clamp(0.3rem, 1vw, 0.6rem);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 25;
+  padding: 0.15rem 0.65rem;
+  border-radius: 999px;
+  color: #1b1608;
+  background: var(--gold);
+  font-size: clamp(0.55rem, 1.8vw, 0.78rem);
+  font-weight: 900;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* ── Deck zone (upper-left) ────────────────── */
+/*
+ * Deck is face-down, horizontal (rotated 90°), on top of the trump.
+ * Trump is face-up, vertical, underneath.
+ * The deck's z-index is higher so it visually sits on the trump.
+ * Together they sit in the upper-left corner without overlapping hands
+ * or the trick zone.
+ */
+
+.deck-zone {
+  position: absolute;
+  top: clamp(0.5rem, 2vw, 1rem);
+  left: clamp(0.5rem, 2vw, 1rem);
+  /* Provide enough space for rotated deck + exposed trump */
+  width: calc(var(--hand-card-width) * 2);
+  height: calc(var(--hand-card-height) * 0.8);
+  z-index: 20;
+}
+
+/* Trump card — face-up, vertical, underneath the deck */
+.deck-zone__trump {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  z-index: 10;
+  width: var(--hand-card-width);
+  height: var(--hand-card-height);
+  filter: saturate(1.15) brightness(1.1);
+  box-shadow:
+    0 0 0 3px var(--gold),
+    0 0 20px rgb(245 197 66 / 40%),
+    0 8px 24px rgb(0 0 0 / 50%);
+  border-radius: 0.5rem;
+}
+
+.deck-zone__trump::before {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 0.7rem;
+  background: radial-gradient(circle, rgb(245 197 66 / 25%), transparent 70%);
+  z-index: -1;
+  pointer-events: none;
+}
+
+.deck-zone__trump .card-view,
+.deck-zone__trump .card-back {
+  width: var(--hand-card-width);
+  height: var(--hand-card-height);
+}
+
+/* Deck — face-down, horizontal, higher z-index, overlaps upper part of trump */
+.deck-zone__deck {
+  position: absolute;
+  top: 0;
+  left: 0;
+  z-index: 20;
+  width: var(--hand-card-height);
+  height: var(--hand-card-width);
+}
+
+.deck-zone__deck-inner {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: rotate(90deg);
+  transform-origin: top left;
+  width: var(--hand-card-width);
+  height: var(--hand-card-height);
+}
+
+.deck-zone__deck-inner .stock-deck-card {
+  position: relative;
+  width: var(--hand-card-width);
+  height: var(--hand-card-height);
+  left: auto;
+  top: auto;
+  transform: none;
+}
+
+.deck-zone__deck-inner .stock-deck-card > .card-back {
+  width: var(--hand-card-width);
+  height: var(--hand-card-height);
+}
+
+.deck-zone__deck-inner .stock-deck-card--empty {
+  display: grid;
+  place-items: center;
+  width: var(--hand-card-width);
+  height: var(--hand-card-height);
+  border: 1px dashed rgb(255 255 255 / 28%);
+  border-radius: 0.45rem;
+  color: #f4e5ad;
+  background: rgb(0 0 0 / 18%);
+  font-size: 0.55rem;
+  font-weight: 900;
+  opacity: 0.48;
+  text-transform: uppercase;
+}
+
+/* ── Player hands ──────────────────────────── */
+
+.hand {
+  position: absolute;
+  z-index: 30;
   pointer-events: auto;
 }
 
-.seat-4p--top {
-  top: 0;
-  left: 50%;
-  transform: translate(-50%, calc(-1 * var(--peek)));
-}
-
-.seat-4p--left {
-  top: 50%;
-  left: 0;
-  transform: translate(calc(-1 * var(--peek)), -50%);
-}
-
-.seat-4p--right {
-  top: 50%;
-  right: 0;
-  transform: translate(var(--peek), -50%);
-}
-
-.seat-4p--bottom {
-  bottom: clamp(0.4rem, 1.6vh, 0.8rem);
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 5;
-}
-
-.seat-4p__inner {
-  display: grid;
-  justify-items: center;
-  gap: 0.25rem;
-  padding: 0.25rem 0.4rem 0.35rem;
-  border-radius: 0.6rem;
-  background: rgb(0 0 0 / 25%);
-  backdrop-filter: blur(4px);
-}
-
-.seat-4p__inner--top    { grid-auto-flow: row; }
-.seat-4p__inner--left   { transform-origin: center center; }
-.seat-4p__inner--right  { transform-origin: center center; }
-
-.seat-4p__name {
+.hand__name {
   font-size: 0.6rem;
   font-weight: 800;
   color: var(--gold);
   text-transform: uppercase;
   letter-spacing: 0.06em;
   white-space: nowrap;
-  max-width: min(20vw, 10rem);
   overflow: hidden;
   text-overflow: ellipsis;
+  max-width: 10rem;
+  text-align: center;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 80%);
 }
 
-.seat-4p__badge {
+.hand__cards {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: var(--hand-card-gap);
+  justify-content: center;
+  align-items: center;
+}
+
+.hand__badge {
   font-size: 0.55rem;
   color: var(--danger);
   font-weight: 700;
   text-transform: uppercase;
+  margin-top: 0.1rem;
+  text-align: center;
 }
 
-/* Center trick + trump peek */
-
-.trick-center-4p {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  z-index: 3;
+.hand__badge--warn {
+  color: var(--gold);
 }
 
-.trick-center-4p .played-card--4p {
+/* South hand — the local player, face-up cards, bottom edge */
+.hand--south {
+  left: 50%;
+  bottom: calc(-0.5 * var(--hand-card-height));
+  transform: translateX(-50%);
+  z-index: 30;
+}
+
+.hand--south .hand__cards {
+  flex-direction: row;
+}
+
+/* North hand — face-down cards, top edge */
+.hand--north {
+  left: 50%;
+  top: calc(-0.5 * var(--hand-card-height));
+  transform: translateX(-50%);
+}
+
+.hand--north .hand__cards {
+  flex-direction: row;
+}
+
+/* West hand — face-down rotated cards, left edge */
+.hand--west {
+  top: 50%;
+  left: 0;
+  transform: translate(calc(-0.5 * var(--hand-card-height)), -50%);
+}
+
+.hand--west .hand__cards {
+  flex-direction: column;
+}
+
+.hand--west .hand__card-wrapper {
+  width: var(--hand-card-height);
+  height: var(--hand-card-width);
   position: relative;
-  display: grid;
-  justify-items: center;
-  transform-origin: 50% 50%;
+}
+
+.hand--west .hand__card-wrapper > .card-back,
+.hand--west .hand__card-wrapper > .card-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: rotate(90deg);
+  transform-origin: top left;
+  width: var(--hand-card-width);
+  height: var(--hand-card-height);
+}
+
+/* East hand — face-down rotated cards, right edge */
+.hand--east {
+  top: 50%;
+  right: 0;
+  transform: translate(calc(0.5 * var(--hand-card-height)), -50%);
+}
+
+.hand--east .hand__cards {
+  flex-direction: column;
+}
+
+.hand--east .hand__card-wrapper {
+  width: var(--hand-card-height);
+  height: var(--hand-card-width);
+  position: relative;
+}
+
+.hand--east .hand__card-wrapper > .card-back,
+.hand--east .hand__card-wrapper > .card-view {
+  position: absolute;
+  top: 0;
+  left: 0;
+  transform: rotate(-90deg);
+  transform-origin: top left;
+  width: var(--hand-card-width);
+  height: var(--hand-card-height);
+}
+
+/* Hands use the hand-card sizing, not the 2P --card-width */
+.hand .card-view,
+.hand .card-back,
+.hand__cards > .card-view,
+.hand__cards > .card-back {
+  width: var(--hand-card-width);
+  height: var(--hand-card-height);
+}
+
+/* ── Trick zone — symmetric cross layout ───── */
+/*
+ * Four fixed seat-based slots positioned at N/E/S/W from the center.
+ * The displacement offset is: d = (w + h) / 2 + gap
+ */
+
+.table-area--4p .trick-zone {
+  display: block;
+  position: absolute;
+  left: 50%;
+  top: 53%;
+  transform: translate(-50%, -50%);
+  z-index: 40;
+  width: 0;
+  height: 0;
+  overflow: visible;
+  border: 0;
+  padding: 0;
+  background: transparent;
+  box-shadow: none;
+}
+
+.trick-slot {
+  position: absolute;
+  left: 50%;
+  top: 50%;
   z-index: 2;
 }
 
-.trick-center-4p .played-card--4p.is-active {
-  animation: brisca-turn-pop 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+.trick-slot--north {
+  transform:
+    translate(-50%, -50%)
+    translateY(calc(-1 * var(--trick-offset)));
 }
 
-/* Mobile 4P: 2×2 grid for trick cards */
-@media (max-width: 640px) {
-  .trick-center-4p {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    grid-template-rows: 1fr 1fr;
-    place-content: center;
-    gap: 0.2rem;
-    padding: 0.2rem;
-  }
-
-  .trick-center-4p .played-card--4p .card-view {
-    width: calc(var(--card-4p-size) * 0.78);
-    height: calc(var(--card-4p-size) * var(--card-4p-ar) * 0.78);
-  }
+.trick-slot--east {
+  transform:
+    translate(-50%, -50%)
+    translateX(var(--trick-offset));
 }
 
-.trick-empty-hint {
-  margin: 0;
-  color: #c2b988;
-  font-size: 0.7rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  opacity: 0.6;
+.trick-slot--south {
+  transform:
+    translate(-50%, -50%)
+    translateY(var(--trick-offset));
 }
 
-.trump-peek-4p {
-  position: absolute;
-  right: clamp(0.4rem, 1.6vw, 1rem);
-  bottom: 0;
-  z-index: 4;
-  width: var(--card-4p-size);
-  /* Half-height wrapper fixed to the lower edge of the table; the card sits in
-     the top half so exactly half of the trump card peeks above the viewport. */
-  height: calc(var(--card-4p-size) * var(--card-4p-ar) / 2);
-  overflow: hidden;
-  border-radius: 0.45rem 0.45rem 0 0;
-  /* Enhanced trump peek visibility */
-  box-shadow: 
-    0 0 20px rgb(245 197 66 / 25%),
-    0 0 40px rgb(245 197 66 / 15%);
-  pointer-events: none;
-  /* Add subtle glow animation */
-  animation: trump-glow 3s ease-in-out infinite;
+.trick-slot--west {
+  transform:
+    translate(-50%, -50%)
+    translateX(calc(-1 * var(--trick-offset)));
 }
 
-@keyframes trump-glow {
-  0%, 100% { box-shadow: 0 0 20px rgb(245 197 66 / 25%), 0 0 40px rgb(245 197 66 / 15%); }
-  50% { box-shadow: 0 0 30px rgb(245 197 66 / 35%), 0 0 60px rgb(245 197 66 / 25%); }
+.trick-slot .played-card {
+  width: var(--trick-card-width);
+  height: var(--trick-card-height);
 }
 
-.trump-peek-4p::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 100%;
-  background: linear-gradient(180deg, transparent, rgb(0 0 0 / 45%));
-  pointer-events: none;
-  z-index: 6;
+.trick-slot .played-card .card-view,
+.trick-slot .played-card .card-back {
+  width: var(--trick-card-width);
+  height: var(--trick-card-height);
 }
 
-.trump-peek-4p > * {
-  position: absolute;
-  inset: 0 0 auto 0;
-  width: var(--card-4p-size);
-  height: calc(var(--card-4p-size) * var(--card-4p-ar));
-}
-
-/* Owner hand sits at the bottom and lays cards out in a single row. */
-
-.owner-hand-4p {
-  display: flex;
-  flex-wrap: nowrap;
-  justify-content: center;
-  gap: var(--hand-card-gap);
-  padding: 0.2rem 0.4rem;
-  background: rgb(0 0 0 / 32%);
-  border-radius: 0.8rem;
-  border: 1px solid var(--panel-border);
-}
-
-/* Active-turn indicator — shared between opponent seats, the owner seat
-   and the trick plays that belong to whoever's turn it is. */
+/* ── Active-turn indicator ─────────────────── */
 
 @media (prefers-reduced-motion: no-preference) {
-  .table-area--4p .is-active.seat-4p__inner,
-  .table-area--4p .is-active.seat-4p--bottom,
-  .opponent-hand.is-active {
+  .table-area--4p .hand.is-active {
     box-shadow: 0 0 0 var(--turn-ring), 0 0 0.8rem var(--gold), 0 0 1.8rem rgb(245 197 66 / 65%);
     animation: brisca-turn-pulse 1.5s ease-in-out infinite;
   }
 }
 
-.table-area--4p .is-active.seat-4p__inner,
-.table-area--4p .is-active.seat-4p--bottom,
-.opponent-hand.is-active,
-.seat-4p__inner.is-active {
+.table-area--4p .hand.is-active {
   outline: var(--turn-ring);
   outline-offset: 2px;
 }
 
-.table-area--4p .seat-4p__inner.is-abandoned,
-.table-area--4p .opponent-hand.is-abandoned {
+.table-area--4p .hand.is-abandoned {
   filter: grayscale(0.8) brightness(0.55);
   opacity: 0.6;
 }
 
-.opponent-hand__badge {
-  margin-left: 0.35rem;
-  padding: 0.05rem 0.4rem;
-  border-radius: 999px;
-  background: rgb(255 180 168 / 22%);
-  color: var(--danger);
-  font-size: 0.55rem;
-  font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
+/* ── Animation keyframes ────────────────────── */
 
 @keyframes brisca-turn-pulse {
   0%, 100% {
@@ -761,86 +885,101 @@ select {
   to   { transform: scale(1)    translateY(0);     opacity: 1; }
 }
 
-.play-column {
-  display: grid;
-  grid-template-rows: var(--trick-zone-height) auto;
-  gap: var(--board-gap);
-  min-width: 0;
+@keyframes trump-glow {
+  0%, 100% { box-shadow: 0 0 20px rgb(245 197 66 / 25%), 0 0 40px rgb(245 197 66 / 15%); }
+  50% { box-shadow: 0 0 30px rgb(245 197 66 / 35%), 0 0 60px rgb(245 197 66 / 25%); }
 }
 
-.trick-zone {
-  grid-area: trick-zone;
-  position: relative;
-  overflow: visible;
-  column-gap: max(calc(var(--card-gap) * 1.5), 0.55rem);
-  row-gap: max(calc(var(--card-gap) * 1.2), 0.35rem);
-  height: auto;
-  min-height: 0;
-  border: 1px dashed rgb(255 255 255 / 20%);
-  border-radius: 1.1rem;
-  padding: var(--board-gap);
-  background: rgb(0 0 0 / 12%);
-  /* Enhanced trick zone styling */
-  transition: all 0.3s ease;
+/* ── Trick zone cross — responsive sizes ─────────── */
+
+/* Very small and short phones */
+@media (max-width: 340px), (max-height: 600px) {
+  .table-area--4p {
+    --trick-card-width: 42px;
+    --trick-gap: 5px;
+  }
+  .table-area--4p .trick-zone {
+    top: 56%;
+  }
 }
 
-/* Trick zone hover effect */
-.trick-zone:hover {
-  background: rgb(0 0 0 / 15%);
-  border-color: rgb(255 255 255 / 25%);
+/* Short phones such as 375 × 667 */
+@media (min-width: 341px) and (max-height: 700px) {
+  .table-area--4p {
+    --trick-card-width: 46px;
+    --trick-gap: 5px;
+  }
+  .table-area--4p .trick-zone {
+    top: 55%;
+  }
 }
 
-/* Trick zone with cards */
-.trick-zone:not(:empty) {
-  background: 
-    radial-gradient(circle at 50% 50%, rgb(245 197 66 / 5%), transparent 70%),
-    rgb(0 0 0 / 12%);
+/* Medium portrait phones (e.g. 360 × 800) */
+@media (min-height: 701px) and (max-width: 374px) {
+  .table-area--4p {
+    --trick-card-width: 48px;
+    --trick-gap: 6px;
+  }
+  .table-area--4p .trick-zone {
+    top: 54%;
+  }
 }
 
-.trick-winner-label {
-  position: absolute;
-  top: 0.55rem;
-  left: 50%;
-  transform: translateX(-50%);
-  margin: 0;
-  border-radius: 999px;
-  padding: 0.25rem 0.65rem;
-  color: #251b04;
-  background: var(--gold);
-  font-size: 0.78rem;
-  font-weight: 900;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  z-index: 20;
+/* Standard modern phones (e.g. 390 × 844, 393 × 852) */
+@media (min-width: 375px) and (max-width: 405px) and (min-height: 701px) {
+  .table-area--4p {
+    --trick-card-width: 52px;
+    --trick-gap: 6px;
+  }
+  .table-area--4p .trick-zone {
+    top: 53%;
+  }
 }
 
-.played-card {
-  display: grid;
-  gap: 0.22rem;
-  justify-items: center;
-  color: #fff7cf;
-  font-weight: 800;
-  transform-origin: 50% 50%;
-  will-change: transform, opacity;
-  z-index: 2;
-  /* Enhanced played card styling */
-  transition: all 0.2s ease;
+/* Large phones (e.g. 414 × 896) */
+@media (min-width: 406px) and (max-width: 420px) {
+  .table-area--4p {
+    --trick-card-width: 56px;
+    --trick-gap: 7px;
+  }
+  .table-area--4p .trick-zone {
+    top: 52%;
+  }
 }
 
-/* Played card hover effect */
-.played-card:hover {
-  transform: scale(1.05);
-  z-index: 5;
+/* Largest supported phones and tablets */
+@media (min-width: 421px) {
+  .table-area--4p {
+    --trick-card-width: 58px;
+    --trick-gap: 8px;
+  }
+  .table-area--4p .trick-zone {
+    top: 52%;
+  }
 }
 
-/* Active player's played card */
-.played-card.is-active {
-  box-shadow: 0 0 0 2px var(--gold), 0 4px 12px rgb(245 197 66 / 30%);
+/* ── Debug mode ────────────────────────────── */
+
+.table-area--4p.debug {
+  outline: 1px solid red;
 }
 
-.played-card--capturing {
-  pointer-events: none;
-  z-index: 6;
+.table-area--4p.debug .trick-zone {
+  outline: 1px dashed yellow;
+  width: 200px;
+  height: 200px;
+}
+
+.table-area--4p.debug .trick-slot {
+  outline: 1px dashed cyan;
+}
+
+.table-area--4p.debug .hand {
+  outline: 1px dashed magenta;
+}
+
+.table-area--4p.debug .deck-zone {
+  outline: 1px dashed lime;
 }
 
 .stock-zone {
@@ -2281,21 +2420,9 @@ img.card-view {
 
   .table-area--4p {
     --card-4p-size: clamp(3.2rem, min(12vw, 8vh), 4.8rem);
-    --peek: 30%;
-    /* Room for trump peek at bottom so it doesn't overlap the owner's hand */
-    padding: 0.15rem 0.15rem calc(var(--card-4p-size) * var(--card-4p-ar) / 2 + 0.5rem);
-  }
-
-  /* Ensure all 4P cards use consistent sizing even inside stock/trick zones */
-  .table-area--4p .stock-stack .card-view,
-  .table-area--4p .stock-stack .card-back,
-  .table-area--4p .trick-zone .card-view,
-  .table-area--4p .trick-zone .card-back,
-  .table-area--4p .hand-row .card-view,
-  .table-area--4p .hand-row .card-back,
-  .table-area--4p .owner-hand-4p .card-view {
-    width: var(--card-4p-size);
-    height: calc(var(--card-4p-size) * var(--card-4p-ar));
+    --hand-card-width: clamp(42px, 14vw, 58px);
+    --hand-card-height: calc(var(--hand-card-width) * 1.45);
+    --hand-card-gap: clamp(3px, 1.5vw, 6px);
   }
 }
 
@@ -2363,9 +2490,10 @@ img.card-view {
     font-size: 0.52rem;
   }
 
-  .table-area--4p .trick-center-4p .played-card .card-view {
-    width: calc(var(--card-4p-size) * 0.85);
-    height: calc(var(--card-4p-size) * 1.34);
+  .table-area--4p {
+    --hand-card-width: clamp(38px, 13vw, 50px);
+    --hand-card-height: calc(var(--hand-card-width) * 1.45);
+    --hand-card-gap: clamp(2px, 1.2vw, 5px);
   }
 }
 
@@ -2385,6 +2513,8 @@ img.card-view {
 
   .table-area--4p {
     --card-4p-size: clamp(3.8rem, min(12vw, 20vh), 6.5rem);
+    --hand-card-width: clamp(44px, 12vw, 60px);
+    --hand-card-height: calc(var(--hand-card-width) * 1.45);
   }
 
   /* Landscape mode enhancements */
@@ -2412,19 +2542,22 @@ img.card-view {
 
 @media (min-width: 768px) {
   .table-area--4p {
-    --card-4p-size: clamp(5rem, min(10vw, 11vh), 7rem);
+    --hand-card-width: clamp(52px, 10vw, 72px);
+    --hand-card-height: calc(var(--hand-card-width) * 1.45);
   }
 }
 
 @media (min-width: 1024px) {
   .table-area--4p {
-    --card-4p-size: clamp(5.5rem, min(9vw, 10vh), 7.5rem);
+    --hand-card-width: clamp(58px, 9vw, 78px);
+    --hand-card-height: calc(var(--hand-card-width) * 1.45);
   }
 }
 
 @media (min-width: 1280px) {
   .table-area--4p {
-    --card-4p-size: clamp(6rem, min(8vw, 9vh), 8.5rem);
+    --hand-card-width: clamp(64px, 8vw, 86px);
+    --hand-card-height: calc(var(--hand-card-width) * 1.45);
   }
 }
 

@@ -30,6 +30,17 @@ interface GameBoardProps {
 
 const rules = new BriscasRules();
 
+type Seat = 'north' | 'east' | 'south' | 'west';
+
+const TRICK_ORIENTATIONS: Record<Seat, number> = {
+  north: 180,
+  east: 90,
+  south: 0,
+  west: -90,
+};
+
+const SEATS: readonly Seat[] = ['north', 'east', 'south', 'west'];
+
 interface AnimatedTrick {
   readonly plays: readonly PlayedCard[];
   readonly winnerId: string;
@@ -84,6 +95,21 @@ export function GameBoard({
         return { player: opp, position } as const;
       })
     : [];
+
+  const seatOf = (playerId: string): Seat => {
+    const player = state.players.find((p) => p.id === playerId);
+    if (!player) return 'south';
+    const relative = (player.seatIndex - viewPlayer.seatIndex + 4) % 4;
+    return (['south', 'east', 'north', 'west'] as const)[relative];
+  };
+
+  const playerBySeat: Record<Seat, Player | null> = {
+    south: viewPlayer,
+    east: gridPositions.find((p) => p.position === 'right')?.player ?? null,
+    north: gridPositions.find((p) => p.position === 'across')?.player ?? null,
+    west: gridPositions.find((p) => p.position === 'left')?.player ?? null,
+  };
+
   const activePlayerName = state.players.find((player) => player.id === state.currentPlayerId)?.displayName ?? 'Nadie';
   const availableSwapRank = availableTrumpSwapRank(state, viewPlayer.id);
   const scoreStatsKey = state.status === GameStatus.Ended ? `${state.gameId}:${state.roundNumber}:${state.version}` : null;
@@ -92,6 +118,16 @@ export function GameBoard({
   const finalScores = state.status === GameStatus.Ended ? finalScoreRows(state) : [];
   const displayedPlays = capturingTrick?.plays ?? state.currentTrick.plays;
   const showFinalResult = state.status === GameStatus.Ended;
+
+  const playsBySeat: Record<Seat, PlayedCard | null> = {
+    north: null,
+    east: null,
+    south: null,
+    west: null,
+  };
+  displayedPlays.forEach((play) => {
+    playsBySeat[seatOf(play.playerId)] = play;
+  });
 
   useEffect(() => {
     const prev = previousTrumpCard.current;
@@ -165,7 +201,7 @@ export function GameBoard({
     const stockCard = tableAreaRef.current.querySelector<HTMLElement>('.stock-deck-card');
     const dealtCards = Array.from(
       tableAreaRef.current.querySelectorAll<HTMLElement>(
-        '.mini-hand > .card-back, .hand-row > .card-view, .owner-hand-4p [data-card-id]',
+        '.hand__cards > .card-back, .hand--south [data-card-id], .hand__cards > .card-view',
       ),
     );
     if (!stockCard || dealtCards.length === 0) {
@@ -359,7 +395,7 @@ export function GameBoard({
     }
 
     const elements = Array.from(trickZoneRef.current.querySelectorAll<HTMLElement>('.played-card--capturing'));
-    const target = Array.from(tableAreaRef.current.querySelectorAll<HTMLElement>('.seat-4p [data-player-target]')).find(
+    const target = Array.from(tableAreaRef.current.querySelectorAll<HTMLElement>('.hand [data-player-target]')).find(
       (element) => element.dataset.playerTarget === capturingTrick.winnerId,
     );
     const targetRect = (target ?? tableAreaRef.current).getBoundingClientRect();
@@ -419,7 +455,7 @@ export function GameBoard({
       ) : null}          {fourPlayer ? (
         <section className="table-area table-area--4p" aria-label="Mesa de juego" ref={tableAreaRef}>
           <div
-            className={`turn-indicator-4p`}
+            className="turn-indicator-4p"
             role="status"
             aria-live="polite"
             data-turn-owner={state.currentPlayerId ?? ''}
@@ -434,74 +470,95 @@ export function GameBoard({
               </span>
             )}
           </div>
-          <div className="seat-4p seat-4p--top" data-seat="2">
-            {gridPositions
-              .filter((p) => p.position === 'across')
-              .map((p) =>
-                renderFourPlayerSeat({
-                  player: p.player,
-                  side: 'top',
-                  active: state.currentPlayerId === p.player.id,
-                  stale: p.player.isStale(now, ABANDONMENT_GRACE_MS),
-                }),
-              )}
-          </div>
 
-          <div className="seat-4p seat-4p--left" data-seat="1">
-            {gridPositions
-              .filter((p) => p.position === 'left')
-              .map((p) =>
-                renderFourPlayerSeat({
-                  player: p.player,
-                  side: 'left',
-                  active: state.currentPlayerId === p.player.id,
-                  stale: p.player.isStale(now, ABANDONMENT_GRACE_MS),
-                }),
-              )}
-          </div>
-
-          <div className="seat-4p seat-4p--right" data-seat="3">
-            {gridPositions
-              .filter((p) => p.position === 'right')
-              .map((p) =>
-                renderFourPlayerSeat({
-                  player: p.player,
-                  side: 'right',
-                  active: state.currentPlayerId === p.player.id,
-                  stale: p.player.isStale(now, ABANDONMENT_GRACE_MS),
-                }),
-              )}
-          </div>
-
-          <div className="trick-center-4p" aria-label="Baza actual" ref={trickZoneRef}>
-            {displayedPlays.length === 0 ? <p className="trick-empty-hint">La baza está vacía.</p> : null}
-            {capturingTrick ? <p className="trick-winner-label">Baza para {playerName(state, capturingTrick.winnerId)}</p> : null}
-            {displayedPlays.map((play) => (
-              <div
-                key={`${capturingTrick?.version ?? 'current'}-${play.playerId}-${play.card.id}`}
-                className={`played-card played-card--4p ${capturingTrick ? 'played-card--capturing' : ''} ${
-                  state.currentPlayerId === play.playerId ? 'is-active' : ''
-                }`}
-                data-play-key={playKeyFor(play)}
-                title={playerName(state, play.playerId)}
-              >
-                <CardView card={play.card} label={`${playerName(state, play.playerId)} jugó ${play.card.toString()}`} />
-              </div>
-            ))}
-          </div>
-
-          {state.trumpCard ? (
-            <div className="trump-peek-4p" aria-hidden="true">
-              <CardView card={state.trumpCard} label={`Triunfo: ${state.trumpCard.toString()}`} />
+          {/* Deck + trump card in upper-left */}
+          <div className="deck-zone" aria-label="Mazo y triunfo">
+            <div className="deck-zone__trump" aria-hidden="true">
+              {state.trumpCard ? (
+                <CardView card={state.trumpCard} label={`Triunfo: ${state.trumpCard.toString()}`} />
+              ) : null}
             </div>
-          ) : null}
+            <div className="deck-zone__deck">
+              <div className="deck-zone__deck-inner">
+                <div className={`stock-deck-card ${state.deck.isEmpty ? 'stock-deck-card--empty' : ''}`}>
+                  {state.deck.isEmpty ? <span>Mazo vacío</span> : <CardView hidden label="Mazo de cartas" />}
+                </div>
+              </div>
+            </div>
+          </div>
 
-          <section
-            className={`seat-4p seat-4p--bottom ${state.currentPlayerId === viewPlayer.id ? 'is-active' : ''}`}
+          {/* North hand */}
+          {playerBySeat.north ? (() => {
+            const p = playerBySeat.north!;
+            return (
+              <div
+                className={`hand hand--north ${state.currentPlayerId === p.id ? 'is-active' : ''}`}
+                data-player-target={p.id}
+                aria-label={`Mano de ${p.displayName}`}
+              >
+                <div className="hand__name">{p.displayName}</div>
+                {renderPlayerBadge(p, now, ABANDONMENT_GRACE_MS)}
+                <div className="hand__cards">
+                  {Array.from({ length: p.hand.size }, (_, i) => (
+                    <CardView key={i} hidden />
+                  ))}
+                </div>
+              </div>
+            );
+          })() : null}
+
+          {/* East hand */}
+          {playerBySeat.east ? (() => {
+            const p = playerBySeat.east!;
+            return (
+              <div
+                className={`hand hand--east ${state.currentPlayerId === p.id ? 'is-active' : ''}`}
+                data-player-target={p.id}
+                aria-label={`Mano de ${p.displayName}`}
+              >
+                <div className="hand__name">{p.displayName}</div>
+                {renderPlayerBadge(p, now, ABANDONMENT_GRACE_MS)}
+                <div className="hand__cards">
+                  {Array.from({ length: p.hand.size }, (_, i) => (
+                    <div className="hand__card-wrapper" key={i}>
+                      <CardView hidden />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })() : null}
+
+          {/* West hand */}
+          {playerBySeat.west ? (() => {
+            const p = playerBySeat.west!;
+            return (
+              <div
+                className={`hand hand--west ${state.currentPlayerId === p.id ? 'is-active' : ''}`}
+                data-player-target={p.id}
+                aria-label={`Mano de ${p.displayName}`}
+              >
+                <div className="hand__name">{p.displayName}</div>
+                {renderPlayerBadge(p, now, ABANDONMENT_GRACE_MS)}
+                <div className="hand__cards">
+                  {Array.from({ length: p.hand.size }, (_, i) => (
+                    <div className="hand__card-wrapper" key={i}>
+                      <CardView hidden />
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })() : null}
+
+          {/* South hand (local player) */}
+          <div
+            className={`hand hand--south ${state.currentPlayerId === viewPlayer.id ? 'is-active' : ''}`}
             aria-label={`Mano de ${viewPlayer.displayName}`}
             data-player-target={viewPlayer.id}
           >
-            <div className="owner-hand-4p">
+            <div className="hand__name">{viewPlayer.displayName}</div>
+            <div className="hand__cards">
               {viewPlayer.hand.toArray().map((card) => {
                 const validation = rules.canPlayCard(state, viewPlayer.id, card);
                 return (
@@ -515,7 +572,36 @@ export function GameBoard({
                 );
               })}
             </div>
-          </section>
+          </div>
+
+          {/* Trick zone with 4 fixed seat-based slots */}
+          <div className="trick-zone" ref={trickZoneRef} aria-label="Baza actual">
+            {capturingTrick ? (
+              <p className="trick-winner-label">
+                Baza para {playerName(state, capturingTrick.winnerId)}
+              </p>
+            ) : null}
+            {SEATS.map((seat) => (
+              <div key={seat} className={`trick-slot trick-slot--${seat}`} data-seat={seat}>
+                {playsBySeat[seat] ? (
+                  <div
+                    key={`${capturingTrick?.version ?? 'current'}-${playsBySeat[seat]!.playerId}-${playsBySeat[seat]!.card.id}`}
+                    className={`played-card ${capturingTrick ? 'played-card--capturing' : ''} ${
+                      state.currentPlayerId === playsBySeat[seat]!.playerId ? 'is-active' : ''
+                    }`}
+                    style={{ transform: `rotate(${TRICK_ORIENTATIONS[seat]}deg)` }}
+                    data-play-key={playKeyFor(playsBySeat[seat]!)}
+                    title={playerName(state, playsBySeat[seat]!.playerId)}
+                  >
+                    <CardView
+                      card={playsBySeat[seat]!.card}
+                      label={`${playerName(state, playsBySeat[seat]!.playerId)} jugó ${playsBySeat[seat]!.card.toString()}`}
+                    />
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
 
         </section>
       ) : (
@@ -949,7 +1035,7 @@ function targetElementForDraw(tableArea: HTMLElement, playerId: string, cardId: 
     ) ?? null;
   }
 
-  return Array.from(playerArea.querySelectorAll<HTMLElement>('.mini-hand > .card-back')).at(-1) ?? null;
+  return Array.from(playerArea.querySelectorAll<HTMLElement>('.hand__cards > .card-back')).at(-1) ?? null;
 }
 
 function playKeyFor(play: PlayedCard): string {
@@ -994,37 +1080,12 @@ function abandonedResultLabel(state: GameState): string {
   return `${abandoner.displayName} abandonó la sala. Gana ${winnerLabel}.`;
 }
 
-function renderFourPlayerSeat(params: {
-  readonly player: Player;
-  readonly side: 'top' | 'left' | 'right';
-  readonly active: boolean;
-  readonly stale: boolean;
-}): JSX.Element {
-  const { player, side, active, stale } = params;
-  return (
-    <div
-      className={[
-        'seat-4p__inner',
-        `seat-4p__inner--${side}`,
-        active ? 'is-active' : '',
-        player.abandonedAt !== null ? 'is-abandoned' : stale ? 'is-stale' : '',
-      ]
-        .filter(Boolean)
-        .join(' ')}
-      data-player-target={player.id}
-      aria-label={`Mano oculta de ${player.displayName}`}
-    >
-      <div className="seat-4p__name">{player.displayName}</div>
-      <div className="mini-hand" aria-label={`${player.hand.size} cartas ocultas`}>
-        {Array.from({ length: player.hand.size }, (_, index) => (
-          <CardView key={index} hidden />
-        ))}
-      </div>
-      {player.abandonedAt !== null ? (
-        <span className="seat-4p__badge">Abandonó</span>
-      ) : stale ? (
-        <span className="seat-4p__badge seat-4p__badge--warn">Desconectado…</span>
-      ) : null}
-    </div>
-  );
+function renderPlayerBadge(player: Player, now: number, graceMs: number): JSX.Element | null {
+  if (player.abandonedAt !== null) {
+    return <span className="hand__badge">Abandonó</span>;
+  }
+  if (player.isStale(now, graceMs)) {
+    return <span className="hand__badge hand__badge--warn">Desconectado…</span>;
+  }
+  return null;
 }
