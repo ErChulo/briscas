@@ -26,7 +26,7 @@
   box-sizing: border-box;
 }
 
-html, body {
+html {
   width: 100%;
   height: 100%;
   margin: 0;
@@ -36,6 +36,7 @@ html, body {
 body {
   min-width: 320px;
   min-height: 100vh;
+  margin: 0;
   background:
     radial-gradient(circle at 18% 10%, rgb(245 197 66 / 18%), transparent 28rem),
     radial-gradient(circle at 85% 80%, rgb(27 94 32 / 35%), transparent 32rem),
@@ -2278,10 +2279,10 @@ img.card-view {
     height: 100svh;
     max-height: none;
     overflow-y: auto;
-    gap: 0.6rem;
+    gap: 0.5rem;
     border: 0;
     border-radius: 0;
-    padding: max(env(safe-area-inset-top, 0.8rem), 0.8rem) 1rem 1rem;
+    padding: max(env(safe-area-inset-top, 1.2rem), 1.2rem) 1rem 1rem;
     background:
       radial-gradient(circle at 50% 20%, rgb(245 197 66 / 24%), transparent 16rem),
       linear-gradient(160deg, rgb(8 31 17 / 98%), rgb(2 10 6 / 98%));
@@ -2289,34 +2290,35 @@ img.card-view {
   }
 
   .final-result-card h2 {
-    font-size: clamp(1.8rem, 12vw, 3.2rem);
+    font-size: clamp(1.6rem, 10vw, 2.6rem);
     text-shadow: 0 0.25rem 1.4rem rgb(245 197 66 / 36%);
+    margin-top: 0.25rem;
   }
 
   .final-result-card dl {
-    gap: 0.28rem;
+    gap: 0.22rem;
   }
 
   .final-result-card dl > div {
-    border-radius: 0.65rem;
-    padding: 0.55rem 0.65rem;
-    font-size: 0.95rem;
+    border-radius: 0.55rem;
+    padding: 0.45rem 0.55rem;
+    font-size: 0.85rem;
   }
 
   .final-result-card dl > div.is-winner {
     border: 2px solid #fff5b7;
-    font-size: 1.1rem;
+    font-size: 1rem;
     box-shadow: 0 0.9rem 2rem rgb(245 197 66 / 32%), 0 0 2rem rgb(245 197 66 / 18%);
   }
 
   .final-result-actions {
-    gap: 0.3rem;
+    gap: 0.25rem;
   }
 
   .final-result-actions button {
-    min-height: 2rem;
-    padding: 0.32rem 0.38rem;
-    font-size: 0.68rem;
+    min-height: 1.85rem;
+    padding: 0.3rem 0.35rem;
+    font-size: 0.65rem;
   }
 
   .hand-panel {
