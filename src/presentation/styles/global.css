@@ -2574,6 +2574,241 @@ img.card-view {
   }
 }
 
+/* ── 4P layout corrections for portrait mobile ────────────────── */
+/* Override existing 640px-and-below styles specifically for portrait
+ * orientation. Fixes west/east hand visibility, north hand + notification
+ * separation, compact trick zone, centered winner popup, deck/trump
+ * positioning, and info-rail awareness.
+ */
+
+@media (max-width: 640px) and (orientation: portrait) {
+  .table-area--4p {
+    /* Shared coordinate variables derived from safe-area and viewport */
+    --safe-top: env(safe-area-inset-top, 0px);
+    --safe-right: env(safe-area-inset-right, 0px);
+    --safe-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-left: env(safe-area-inset-left, 0px);
+    --info-rail-width: clamp(38px, 11vw, 54px);
+    --side-card-visible: clamp(24px, 9vw, 42px);
+    --layout-clearance: clamp(6px, 2vw, 12px);
+    --north-visible-depth: clamp(42px, 8vh, 72px);
+    --notification-gap: clamp(6px, 1.5vh, 12px);
+    --deck-inset-x: clamp(34px, 11vw, 58px);
+    --deck-inset-y: clamp(54px, 11vh, 92px);
+
+    /* Compact trick-zone offset: tighter cross layout */
+    --trick-offset: calc(
+      0.46 * var(--trick-card-height)
+      + 0.46 * var(--trick-card-width)
+      + var(--trick-gap)
+    );
+  }
+
+  /* ── West hand ─────────────────────────────── */
+  /* Pull cards inward using spec formula:
+   * left: -1 * (rotated-card-width - side-card-visible)
+   * This exposes exactly side-card-visible pixels of each card.
+   */
+  .hand--west {
+    left: calc(-1 * (var(--hand-card-height) - var(--side-card-visible)));
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  /* West name: inside board, near card tips, left-aligned */
+  .hand--west .hand__name {
+    position: absolute;
+    left: calc(var(--side-card-visible) + var(--layout-clearance));
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: clamp(0.5rem, 2.5vw, 0.65rem);
+    max-width: calc(40vw - var(--side-card-visible) - var(--layout-clearance) * 2);
+    text-align: left;
+    writing-mode: horizontal-tb;
+  }
+
+  /* ── East hand ─────────────────────────────── */
+  /* Position cards using spec formula:
+   * right: info-rail-width - (rotated-card-width - side-card-visible)
+   * This accounts for both info rail width and desired visible portion.
+   */
+  .hand--east {
+    right: calc(
+      var(--info-rail-width)
+      - (var(--hand-card-height) - var(--side-card-visible))
+    );
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  /* East name: between card tips and info rail, right-aligned */
+  /* Position name LEFT of the info rail so it doesn't render behind the Info button */
+  .hand--east .hand__name {
+    position: absolute;
+    right: calc(var(--info-rail-width) + var(--layout-clearance));
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: clamp(0.5rem, 2.5vw, 0.65rem);
+    max-width: calc(40vw - var(--side-card-visible) - var(--info-rail-width) - var(--layout-clearance) * 2);
+    text-align: right;
+    writing-mode: horizontal-tb;
+  }
+
+  /* ── North hand name sizing ────────────────── */
+  .hand--north .hand__name {
+    font-size: clamp(0.5rem, 2.5vw, 0.65rem);
+  }
+
+  .hand--south .hand__name {
+    font-size: clamp(0.55rem, 2.8vw, 0.7rem);
+  }
+
+  /* ── Notification lane ─────────────────────── */
+  /* Position swap-notification below the north hand visible depth */
+  .swap-notification {
+    top: calc(
+      var(--safe-top)
+      + var(--north-visible-depth)
+      + var(--notification-gap)
+    );
+    z-index: 60;
+  }
+
+  /* ── Deck/trump positioning ────────────────── */
+  /* Move inward from corner using dedicated anchor */
+  .deck-zone {
+    top: calc(
+      var(--safe-top)
+      + var(--deck-inset-y)
+    );
+    left: calc(
+      var(--safe-left)
+      + var(--deck-inset-x)
+    );
+  }
+
+  /* ── Winner popup ──────────────────────── */
+  /* Viewport-centered modal with safe-area padding */
+  .final-result-card {
+    z-index: 100;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    padding:
+      calc(var(--safe-top) + 16px)
+      calc(var(--safe-right) + 16px)
+      calc(var(--safe-bottom) + 16px)
+      calc(var(--safe-left) + 16px);
+    background:
+      radial-gradient(circle at 50% 20%, rgb(245 197 66 / 24%), transparent 16rem),
+      linear-gradient(160deg, rgb(8 31 17 / 98%), rgb(2 10 6 / 98%));
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+  }
+
+  .final-result-card > * {
+    width: 100%;
+    max-width: min(88vw, 420px);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  .final-result-card h2 {
+    font-size: clamp(1.35rem, 7vw, 2.4rem);
+  }
+
+  .final-result-card dl > div {
+    font-size: clamp(0.85rem, 4vw, 1.1rem);
+  }
+
+  .final-result-actions {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.35rem;
+  }
+
+  .final-result-actions button {
+    min-height: 44px;
+    font-size: clamp(0.9rem, 4vw, 1.1rem);
+    padding: 0.5rem 0.4rem;
+  }
+
+  /* Scale down for very small phones */
+  @media (max-width: 390px), (max-height: 700px) {
+    .final-result-card {
+      padding:
+        calc(var(--safe-top) + 12px)
+        calc(var(--safe-right) + 12px)
+        calc(var(--safe-bottom) + 12px)
+        calc(var(--safe-left) + 12px);
+    }
+
+    .final-result-card h2 {
+      font-size: clamp(1.15rem, 6vw, 1.8rem);
+    }
+
+    .final-result-card dl > div {
+      font-size: clamp(0.75rem, 3.5vw, 0.95rem);
+      padding: 0.35rem 0.45rem;
+    }
+
+    .final-result-actions {
+      gap: 0.2rem;
+    }
+
+    .final-result-actions button {
+      min-height: 38px;
+      font-size: clamp(0.75rem, 3.5vw, 0.9rem);
+      padding: 0.35rem 0.3rem;
+    }
+  }
+}
+
+/* ── Debug layout mode ───────────────────────────────── */
+/* Activate by adding class "debug-layout" to .table-area--4p */
+
+.table-area--4p.debug-layout {
+  outline: 2px solid red;
+  position: relative;
+}
+
+.table-area--4p.debug-layout .hand--north,
+.table-area--4p.debug-layout .hand--east,
+.table-area--4p.debug-layout .hand--south,
+.table-area--4p.debug-layout .hand--west {
+  outline: 2px dashed magenta;
+  background: rgb(255 0 255 / 6%);
+}
+
+.table-area--4p.debug-layout .hand__name {
+  outline: 1px dashed cyan;
+  background: rgb(0 255 255 / 8%);
+}
+
+.table-area--4p.debug-layout .deck-zone {
+  outline: 2px dashed lime;
+  background: rgb(0 255 0 / 6%);
+}
+
+.table-area--4p.debug-layout .trick-zone {
+  outline: 2px dashed yellow;
+  width: 200px;
+  height: 200px;
+  background: rgb(255 255 0 / 4%);
+}
+
+.table-area--4p.debug-layout .trick-slot {
+  outline: 1px dashed cyan;
+}
+
+.table-area--4p.debug-layout .final-result-card {
+  outline: 2px dashed orange;
+}
+
+.table-area--4p.debug-layout .swap-notification {
+  outline: 1px dashed white;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --felt: #0a5c2a;
