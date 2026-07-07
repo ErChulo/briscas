@@ -1,4 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react';
+import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
 import { BriscasRules } from '../../domain/rules/BriscasRules';
 import type { TrumpSwapRank } from '../../domain/rules/RulesEngine';
@@ -139,7 +140,7 @@ export function GameBoard({
       return;
     }
     setSwapNotification(`Triunfo: ${state.trumpCard.toString()}`); // eslint-disable-line react-hooks/set-state-in-effect -- sync external trump change
-    const timer = setTimeout(() => setSwapNotification(null), 1500);
+    const timer = setTimeout(() => setSwapNotification(null), 2800);
     return () => clearTimeout(timer);
   }, [state.trumpCard, state.trumpExchangeUsed]);
 
@@ -715,8 +716,8 @@ export function GameBoard({
       </section>
       )}
 
-      {showFinalResult ? (
-        <section className="final-result-card panel" aria-live="polite" aria-label="Resultado final">
+      {showFinalResult ? createPortal(
+        <section className="final-result-card panel" aria-live="polite" aria-label="Resultado final" data-portaled="true">
           <p className="eyebrow">Resultado final</p>
           <h2>{resultText}</h2>
           <dl>
@@ -738,7 +739,8 @@ export function GameBoard({
               Menú
             </button>
           </div>
-        </section>
+        </section>,
+        document.body
       ) : null}
 
       {state.status === GameStatus.Ended && scoreStatsOpen ? (

@@ -343,9 +343,9 @@ select {
 
 @keyframes swap-notify-fade {
   0% { opacity: 0; transform: translateX(-50%) translateY(-6px); }
-  15% { opacity: 1; transform: translateX(-50%) translateY(0); }
-  75% { opacity: 1; }
-  100% { opacity: 0; }
+  8% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  82% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
 }
 
 .table-area {
@@ -2582,14 +2582,24 @@ img.card-view {
  */
 
 @media (max-width: 640px) and (orientation: portrait) {
+  /* ── Viewport safety ────────────────────── */
+  html,
+  body,
+  #root {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: hidden;
+  }
+
   .table-area--4p {
     /* Shared coordinate variables derived from safe-area and viewport */
     --safe-top: env(safe-area-inset-top, 0px);
     --safe-right: env(safe-area-inset-right, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-left: env(safe-area-inset-left, 0px);
-    --info-rail-width: clamp(38px, 11vw, 54px);
-    --side-card-visible: clamp(24px, 9vw, 42px);
+    --info-rail-width: clamp(44px, 12vw, 58px);
+    --side-card-visible: clamp(30px, 10vw, 48px);
     --layout-clearance: clamp(6px, 2vw, 12px);
     --north-visible-depth: clamp(42px, 8vh, 72px);
     --notification-gap: clamp(6px, 1.5vh, 12px);
@@ -2605,33 +2615,34 @@ img.card-view {
   }
 
   /* ── West hand ─────────────────────────────── */
-  /* Pull cards inward using spec formula:
-   * left: -1 * (rotated-card-width - side-card-visible)
-   * This exposes exactly side-card-visible pixels of each card.
-   */
   .hand--west {
     left: calc(-1 * (var(--hand-card-height) - var(--side-card-visible)));
     top: 50%;
     transform: translateY(-50%);
+    z-index: 31;
   }
 
-  /* West name: inside board, near card tips, left-aligned */
+  /* West name: vertical, inside board, near card tips */
   .hand--west .hand__name {
     position: absolute;
     left: calc(var(--side-card-visible) + var(--layout-clearance));
     top: 50%;
-    transform: translateY(-50%);
-    font-size: clamp(0.5rem, 2.5vw, 0.65rem);
-    max-width: calc(40vw - var(--side-card-visible) - var(--layout-clearance) * 2);
-    text-align: left;
-    writing-mode: horizontal-tb;
+    transform: translateY(-50%) rotate(180deg);
+    font-size: clamp(12px, 3.4vw, 17px);
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    max-width: 18rem;
+    max-height: calc(100% - 0.5rem);
+    text-align: center;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    z-index: 55;
+    pointer-events: none;
+    overflow: visible;
   }
 
   /* ── East hand ─────────────────────────────── */
-  /* Position cards using spec formula:
-   * right: info-rail-width - (rotated-card-width - side-card-visible)
-   * This accounts for both info rail width and desired visible portion.
-   */
   .hand--east {
     right: calc(
       var(--info-rail-width)
@@ -2639,43 +2650,54 @@ img.card-view {
     );
     top: 50%;
     transform: translateY(-50%);
+    z-index: 31;
   }
 
-  /* East name: between card tips and info rail, right-aligned */
-  /* Position name LEFT of the info rail so it doesn't render behind the Info button */
+  /* East name: vertical, between card tips and info rail */
   .hand--east .hand__name {
     position: absolute;
     right: calc(var(--info-rail-width) + var(--layout-clearance));
     top: 50%;
     transform: translateY(-50%);
-    font-size: clamp(0.5rem, 2.5vw, 0.65rem);
-    max-width: calc(40vw - var(--side-card-visible) - var(--info-rail-width) - var(--layout-clearance) * 2);
-    text-align: right;
-    writing-mode: horizontal-tb;
+    font-size: clamp(12px, 3.4vw, 17px);
+    line-height: 1;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    max-width: 18rem;
+    max-height: calc(100% - 0.5rem);
+    text-align: center;
+    writing-mode: vertical-rl;
+    text-orientation: mixed;
+    z-index: 55;
+    pointer-events: none;
+    overflow: visible;
   }
 
   /* ── North hand name sizing ────────────────── */
   .hand--north .hand__name {
     font-size: clamp(0.5rem, 2.5vw, 0.65rem);
+    z-index: 55;
+    pointer-events: none;
   }
 
   .hand--south .hand__name {
     font-size: clamp(0.55rem, 2.8vw, 0.7rem);
+    z-index: 55;
+    pointer-events: none;
   }
 
   /* ── Notification lane ─────────────────────── */
-  /* Position swap-notification below the north hand visible depth */
   .swap-notification {
     top: calc(
       var(--safe-top)
       + var(--north-visible-depth)
       + var(--notification-gap)
     );
-    z-index: 60;
+    z-index: 70;
+    animation-duration: 3s;
   }
 
   /* ── Deck/trump positioning ────────────────── */
-  /* Move inward from corner using dedicated anchor */
   .deck-zone {
     top: calc(
       var(--safe-top)
@@ -2687,76 +2709,95 @@ img.card-view {
     );
   }
 
-  /* ── Winner popup ──────────────────────── */
-  /* Viewport-centered modal with safe-area padding */
-  .final-result-card {
-    z-index: 100;
+  /* ── Winner popup (portaled to document.body) ──── */
+  .final-result-card[data-portaled="true"] {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100dvh;
+    z-index: 200;
     display: flex;
     flex-direction: column;
     justify-content: center;
     align-items: center;
     padding:
-      calc(var(--safe-top) + 16px)
-      calc(var(--safe-right) + 16px)
-      calc(var(--safe-bottom) + 16px)
-      calc(var(--safe-left) + 16px);
+      calc(env(safe-area-inset-top, 0px) + 12px)
+      calc(env(safe-area-inset-right, 0px) + 12px)
+      calc(env(safe-area-inset-bottom, 0px) + 12px)
+      calc(env(safe-area-inset-left, 0px) + 12px);
     background:
       radial-gradient(circle at 50% 20%, rgb(245 197 66 / 24%), transparent 16rem),
       linear-gradient(160deg, rgb(8 31 17 / 98%), rgb(2 10 6 / 98%));
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
+    border: 0;
+    border-radius: 0;
+    overflow: hidden;
+    transform: none;
+    animation: result-fade-in-portal 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
 
-  .final-result-card > * {
+  @keyframes result-fade-in-portal {
+    from { opacity: 0; transform: scale(0.92); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+
+  .final-result-card[data-portaled="true"] > * {
     width: 100%;
-    max-width: min(88vw, 420px);
+    max-width: min(90vw, 420px);
+    max-width: calc(
+      100vw
+      - env(safe-area-inset-left, 0px)
+      - env(safe-area-inset-right, 0px)
+      - 24px
+    );
     margin-left: auto;
     margin-right: auto;
   }
 
-  .final-result-card h2 {
+  .final-result-card[data-portaled="true"] h2 {
     font-size: clamp(1.35rem, 7vw, 2.4rem);
   }
 
-  .final-result-card dl > div {
+  .final-result-card[data-portaled="true"] dl > div {
     font-size: clamp(0.85rem, 4vw, 1.1rem);
   }
 
-  .final-result-actions {
+  .final-result-card[data-portaled="true"] .final-result-actions {
     grid-template-columns: repeat(3, 1fr);
     gap: 0.35rem;
   }
 
-  .final-result-actions button {
+  .final-result-card[data-portaled="true"] .final-result-actions button {
     min-height: 44px;
     font-size: clamp(0.9rem, 4vw, 1.1rem);
     padding: 0.5rem 0.4rem;
   }
 
   /* Scale down for very small phones */
-  @media (max-width: 390px), (max-height: 700px) {
-    .final-result-card {
+  @media (max-height: 700px) {
+    .final-result-card[data-portaled="true"] {
       padding:
-        calc(var(--safe-top) + 12px)
-        calc(var(--safe-right) + 12px)
-        calc(var(--safe-bottom) + 12px)
-        calc(var(--safe-left) + 12px);
+        calc(env(safe-area-inset-top, 0px) + 8px)
+        calc(env(safe-area-inset-right, 0px) + 8px)
+        calc(env(safe-area-inset-bottom, 0px) + 8px)
+        calc(env(safe-area-inset-left, 0px) + 8px);
     }
 
-    .final-result-card h2 {
+    .final-result-card[data-portaled="true"] h2 {
       font-size: clamp(1.15rem, 6vw, 1.8rem);
     }
 
-    .final-result-card dl > div {
+    .final-result-card[data-portaled="true"] dl > div {
       font-size: clamp(0.75rem, 3.5vw, 0.95rem);
       padding: 0.35rem 0.45rem;
     }
 
-    .final-result-actions {
+    .final-result-card[data-portaled="true"] .final-result-actions {
       gap: 0.2rem;
     }
 
-    .final-result-actions button {
+    .final-result-card[data-portaled="true"] .final-result-actions button {
       min-height: 38px;
       font-size: clamp(0.75rem, 3.5vw, 0.9rem);
       padding: 0.35rem 0.3rem;
