@@ -555,6 +555,7 @@ select {
   min-width: 0;
   overflow: visible;
   position: relative;
+  z-index: 3;
 }
 
 .trick-zone-4p .played-card {
@@ -582,6 +583,8 @@ select {
   padding: 0.15rem;
   min-height: 0;
   overflow: visible;
+  position: relative;
+  z-index: 3;
 }
 
 .hand-panel-4p .hand-row {
@@ -1811,9 +1814,6 @@ img.card-view {
 
   .table-area--4p {
     --card-4p-size: clamp(3rem, min(12vw, 8vh), 4.5rem);
-
-    grid-template-columns: clamp(1.2rem, 5vw, 2.5rem) 1fr clamp(1.2rem, 5vw, 2.5rem);
-    grid-template-rows: clamp(1.8rem, 7vh, 3rem) 1fr auto auto;
     padding: 0.15rem;
   }
 
