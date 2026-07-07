@@ -433,97 +433,59 @@ select {
 /* ── 4-player layout ─────────────────────────────────────────── */
 
 .table-area--4p {
-  --card-4p-size: clamp(3.5rem, min(14vw, 8vh), 5rem);
+  --card-4p-size: clamp(4.5rem, min(12vw, 10vh), 6rem);
+  --4p-tip-ratio: 0.18;
 
-  grid-template-columns: clamp(1.5rem, 6vw, 3rem) 1fr clamp(1.5rem, 6vw, 3rem);
-  grid-template-rows: clamp(2rem, 8vh, 3rem) 1fr auto auto;
+  position: relative;
+  overflow: hidden;
+  display: grid;
   grid-template-areas:
-    ".            across-zone   ."
-    "left-zone    trick-zone    right-zone"
-    "left-zone    hand-zone     right-zone"
-    "deck-zone    deck-zone     .";
+    "trick"
+    "hand";
+  grid-template-columns: 1fr;
+  grid-template-rows: 1fr auto;
 }
 
-/* ── deck + trump (compact, bottom-left) ─────────────────────── */
+/* ── deck + trump ──────────────────────────────────────────── */
 
 .deck-trump-zone-4p {
-  grid-area: deck-zone;
-  display: flex;
-  flex-direction: row;
-  align-items: flex-end;
-  justify-content: center;
-  gap: 0.15rem;
-  padding: 0.1rem;
-  min-width: 0;
+  display: none;
 }
 
-.deck-trump-zone-4p .stock-stack {
-  --card-width: var(--card-4p-size);
-  position: relative;
-  display: flex;
-  flex-direction: row;
-  align-items: flex-end;
-  gap: 0;
-  width: auto;
-  height: auto;
-}
-
-.deck-trump-zone-4p .trump-card-face {
-  position: relative;
-  width: calc(var(--card-4p-size) * 0.55);
-  height: calc(var(--card-4p-size) * 0.87);
-  z-index: 1;
-  margin: 0;
-  transform: none;
-  flex-shrink: 0;
-}
-
-.deck-trump-zone-4p .stock-deck-card {
-  position: relative;
-  width: calc(var(--card-4p-size) * 0.55);
-  height: calc(var(--card-4p-size) * 0.87);
-  left: auto;
-  top: auto;
-  transform: none;
-  flex-shrink: 0;
-  clip-path: inset(50% 0 0 0);
-}
-
-/* ── across opponent (top, tips only) ────────────────────────── */
+/* ── across opponent (positioned absolutely above table) ───── */
 
 .player-zone-4p--top {
-  grid-area: across-zone;
-  justify-self: center;
-  align-self: end;
-  overflow: hidden;
+  position: absolute;
+  left: 50%;
+  bottom: 100%;
+  z-index: 2;
+  transform: translateX(-50%) translateY(calc(100% * (1 - var(--4p-tip-ratio))));
 }
 
 .player-zone-4p--top .opponent-hand {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-end;
 }
 
 .player-zone-4p--top .opponent-hand strong {
   display: none;
 }
 
-/* ── left opponent (left edge, tips only) ────────────────────── */
+/* ── left opponent (positioned absolutely left of table) ───── */
 
 .player-zone-4p--left {
-  grid-area: left-zone;
-  align-self: stretch;
-  justify-self: end;
-  overflow: hidden;
+  position: absolute;
+  top: 40%;
+  right: 100%;
+  z-index: 2;
+  transform: translateY(-50%) translateX(calc(100% * (1 - var(--4p-tip-ratio))));
 }
 
 .player-zone-4p--left .opponent-hand {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  justify-content: center;
-  height: 100%;
 }
 
 .player-zone-4p--left .opponent-hand strong {
@@ -535,21 +497,20 @@ select {
   flex-wrap: nowrap;
 }
 
-/* ── right opponent (right edge, tips only) ──────────────────── */
+/* ── right opponent (positioned absolutely right of table) ─── */
 
 .player-zone-4p--right {
-  grid-area: right-zone;
-  align-self: stretch;
-  justify-self: start;
-  overflow: hidden;
+  position: absolute;
+  top: 40%;
+  left: 100%;
+  z-index: 2;
+  transform: translateY(-50%) translateX(calc(-100% * (1 - var(--4p-tip-ratio))));
 }
 
 .player-zone-4p--right .opponent-hand {
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  justify-content: center;
-  height: 100%;
 }
 
 .player-zone-4p--right .opponent-hand strong {
@@ -561,7 +522,7 @@ select {
   flex-wrap: nowrap;
 }
 
-/* ── shared opponent styles ──────────────────────────────────── */
+/* ── shared opponent + card styles ─────────────────────────── */
 
 .table-area--4p .opponent-hand {
   --card-width: var(--card-4p-size);
@@ -581,10 +542,10 @@ select {
   width: calc(var(--card-4p-size) * 0.55);
 }
 
-/* ── trick zone (center, maximum space) ──────────────────────── */
+/* ── trick zone (fills vertical space above hand) ──────────── */
 
 .trick-zone-4p {
-  grid-area: trick-zone;
+  grid-area: trick;
   display: flex;
   flex-wrap: wrap;
   justify-content: center;
@@ -609,10 +570,10 @@ select {
   display: none;
 }
 
-/* ── hand zone (user's full cards) ───────────────────────────── */
+/* ── hand zone (user's full cards, always visible) ─────────── */
 
 .hand-panel-4p {
-  grid-area: hand-zone;
+  grid-area: hand;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -1389,13 +1350,6 @@ img.card-view {
   .open-room-card {
     grid-template-columns: 1fr;
   }
-
-  .table-area--4p {
-    --card-4p-size: clamp(3.5rem, min(10vw, 10vh), 6rem);
-
-    grid-template-columns: clamp(2rem, 8vw, 4rem) 1fr clamp(2rem, 8vw, 4rem);
-    grid-template-rows: clamp(2.5rem, 10vh, 4rem) 1fr auto auto;
-  }
 }
 
 @media (max-width: 640px) {
@@ -1899,17 +1853,6 @@ img.card-view {
     font-size: 0.52rem;
   }
 
-  .table-area--4p {
-    --card-4p-size: clamp(2.5rem, min(14vw, 7vh), 3.8rem);
-
-    grid-template-columns: clamp(1rem, 4vw, 2rem) 1fr clamp(1rem, 4vw, 2rem);
-    grid-template-rows: clamp(1.5rem, 6vh, 2.5rem) 1fr auto auto;
-  }
-
-  .table-area--4p .card-back {
-    width: calc(var(--card-4p-size) * 0.4);
-  }
-
   .table-area--4p .trick-zone-4p .played-card .card-view {
     width: calc(var(--card-4p-size) * 0.85);
     height: calc(var(--card-4p-size) * 1.34);
@@ -1931,10 +1874,7 @@ img.card-view {
   }
 
   .table-area--4p {
-    --card-4p-size: clamp(3rem, min(10vw, 18vh), 5rem);
-
-    grid-template-columns: clamp(2rem, 6vw, 3.5rem) 1fr clamp(2rem, 6vw, 3.5rem);
-    grid-template-rows: clamp(2rem, 12vh, 3.5rem) 1fr auto auto;
+    --card-4p-size: clamp(3.5rem, min(12vw, 20vh), 6rem);
   }
 
   .table-area--4p .trick-zone-4p {
@@ -1943,54 +1883,60 @@ img.card-view {
   }
 }
 
-/* ── 4P progressive reveal: larger screens show more opponent cards ── */
+/* ── 4P progressive reveal ────────────────────────────────────── */
 
 @media (min-width: 768px) {
   .table-area--4p {
-    grid-template-columns: clamp(2.5rem, 8vw, 5rem) 1fr clamp(2.5rem, 8vw, 5rem);
-    grid-template-rows: clamp(3rem, 12vh, 5rem) 1fr auto auto;
+    --card-4p-size: clamp(5rem, min(10vw, 11vh), 7rem);
+    --4p-tip-ratio: 0.35;
   }
 
-  .table-area--4p .card-back {
-    width: calc(var(--card-4p-size) * 0.65);
+  .deck-trump-zone-4p {
+    display: flex;
+    position: absolute;
+    top: 0.4rem;
+    right: 0.4rem;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 0.15rem;
+    z-index: 3;
+  }
+
+  .deck-trump-zone-4p .stock-stack {
+    --card-width: var(--card-4p-size);
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    align-items: flex-end;
+    gap: 0;
+  }
+
+  .deck-trump-zone-4p .trump-card-face {
+    position: relative;
+    width: calc(var(--card-4p-size) * 0.5);
+    height: calc(var(--card-4p-size) * 0.79);
+    z-index: 1;
+    margin: 0;
+    transform: none;
+    flex-shrink: 0;
+  }
+
+  .deck-trump-zone-4p .stock-deck-card {
+    position: relative;
+    width: calc(var(--card-4p-size) * 0.5);
+    height: calc(var(--card-4p-size) * 0.79);
+    left: auto;
+    top: auto;
+    transform: none;
+    flex-shrink: 0;
+    clip-path: inset(50% 0 0 0);
   }
 }
 
 @media (min-width: 1024px) {
   .table-area--4p {
-    --card-4p-size: clamp(4rem, min(8vw, 12vh), 7rem);
-
-    grid-template-columns: clamp(3rem, 7vw, 6rem) 1fr clamp(3rem, 7vw, 6rem);
-    grid-template-rows: clamp(3.5rem, 14vh, 6rem) 1fr auto auto;
-  }
-
-  .table-area--4p .card-back {
-    width: calc(var(--card-4p-size) * 0.75);
-  }
-
-  .player-zone-4p--top .opponent-hand,
-  .player-zone-4p--left .opponent-hand,
-  .player-zone-4p--right .opponent-hand {
-    overflow: visible;
-  }
-
-  .player-zone-4p--top,
-  .player-zone-4p--left,
-  .player-zone-4p--right {
-    overflow: visible;
-  }
-}
-
-@media (min-width: 1280px) {
-  .table-area--4p {
-    --card-4p-size: clamp(5rem, min(7vw, 11vh), 7.5rem);
-
-    grid-template-columns: clamp(4rem, 6vw, 7rem) 1fr clamp(4rem, 6vw, 7rem);
-    grid-template-rows: clamp(4rem, 16vh, 7rem) 1fr auto auto;
-  }
-
-  .table-area--4p .card-back {
-    width: calc(var(--card-4p-size) * 0.6);
+    --card-4p-size: clamp(5.5rem, min(9vw, 10vh), 7.5rem);
+    --4p-tip-ratio: 0.5;
   }
 
   .player-zone-4p--top .opponent-hand strong,
@@ -2002,6 +1948,13 @@ img.card-view {
     text-align: center;
     margin-bottom: 0.15rem;
     white-space: nowrap;
+  }
+}
+
+@media (min-width: 1280px) {
+  .table-area--4p {
+    --card-4p-size: clamp(6rem, min(8vw, 9vh), 8rem);
+    --4p-tip-ratio: 0.75;
   }
 }
 

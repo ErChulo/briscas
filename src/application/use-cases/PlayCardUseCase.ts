@@ -31,14 +31,13 @@ export class PlayCardUseCase {
   ) {}
 
   public async execute(command: PlayCardCommand, currentState?: GameState): Promise<GameState> {
+    if (currentState) {
+      await this.repository.updateGame({ state: currentState });
+      return currentState;
+    }
+
     const now = this.clock.now();
     const card = Card.fromId(command.cardId);
-
-    if (currentState) {
-      const nextState = this.engine.playCard(currentState, command.playerId, card, now);
-      await this.repository.updateGame({ state: nextState });
-      return nextState;
-    }
 
     const update = await this.repository.runTransaction(command.gameId, (state) => {
       const nextState = this.engine.playCard(state, command.playerId, card, now);
