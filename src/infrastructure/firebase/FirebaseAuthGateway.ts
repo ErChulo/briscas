@@ -15,12 +15,16 @@ let pendingAnonymousSignIn: { readonly startedAt: number; readonly promise: Prom
 export class FirebaseAuthGateway implements AuthGateway {
   public async signInAnonymously(displayName = 'Jugador'): Promise<AuthenticatedPlayer> {
     const auth = getFirebaseAuth();
-    const user = auth.currentUser ?? await signInOnce(auth);
+    const existingUser = auth.currentUser;
+    console.log('[Auth] signInAnonymously called with displayName:', displayName, '| existing UID:', existingUser?.uid ?? 'none', '| existing displayName:', existingUser?.displayName ?? 'none');
+    const user = existingUser ?? await signInOnce(auth);
     if (displayName && user.displayName !== displayName) {
       await updateProfile(user, { displayName });
+      console.log('[Auth] updateProfile done — new user.displayName:', user.displayName);
     }
-
-    return { uid: user.uid, displayName, isAnonymous: user.isAnonymous };
+    const result = { uid: user.uid, displayName, isAnonymous: user.isAnonymous };
+    console.log('[Auth] signInAnonymously returning:', result);
+    return result;
   }
 
   public async signInWithGoogle(): Promise<AuthenticatedPlayer> {

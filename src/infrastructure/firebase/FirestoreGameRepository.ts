@@ -124,12 +124,19 @@ export class FirestoreGameRepository implements GameRepository {
   }
 
   public subscribe(gameId: GameId, onChange: (state: GameState | null) => void): () => void {
+    let latestVersion = -1;
+
     void getDocFromCache(this.gameRef(gameId))
       .then((cached) => {
         if (cached.exists()) {
           const gameDocument = cached.data() as StoredGameDocument;
           if (this.hasEmbeddedPlayers(gameDocument)) {
-            onChange(GameStateMapper.fromData(gameDocument as SerializedGameState));
+            const cachedState = GameStateMapper.fromData(gameDocument as SerializedGameState);
+            if (cachedState.version > latestVersion) {
+              latestVersion = cachedState.version;
+              console.log('[Repo] subscribe cache hit, version:', cachedState.version, 'players:', cachedState.players.map((p) => p.displayName));
+              onChange(cachedState);
+            }
           }
         }
       })
@@ -143,12 +150,23 @@ export class FirestoreGameRepository implements GameRepository {
 
       const gameDocument = snapshot.data() as StoredGameDocument;
       if (this.hasEmbeddedPlayers(gameDocument)) {
-        onChange(GameStateMapper.fromData(gameDocument as SerializedGameState));
+        const freshState = GameStateMapper.fromData(gameDocument as SerializedGameState);
+        if (freshState.version > latestVersion) {
+          latestVersion = freshState.version;
+          console.log('[Repo] subscribe snapshot, version:', freshState.version, 'players:', freshState.players.map((p) => p.displayName));
+          onChange(freshState);
+        }
         return;
       }
 
       void this.getPlayerDocuments(gameId, gameDocument.playerIds)
-        .then((players) => onChange(this.fromDocuments(gameDocument, players.filter(Boolean))))
+        .then((players) => {
+          const freshState = this.fromDocuments(gameDocument, players.filter(Boolean));
+          if (freshState.version > latestVersion) {
+            latestVersion = freshState.version;
+            onChange(freshState);
+          }
+        })
         .catch(() => onChange(null));
     });
   }
