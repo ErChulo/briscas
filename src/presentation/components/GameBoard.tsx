@@ -398,7 +398,7 @@ export function GameBoard({
         return targetRect.top + targetRect.height / 2 - (rect.top + rect.height / 2);
       },
       duration: 0.34,
-      delay: 0.12,
+      delay: 1.0,
       stagger: 0.03,
       ease: 'power3.inOut',
     });

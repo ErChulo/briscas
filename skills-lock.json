@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "card-game": {
+      "source": "gamedev-skills/awesome-gamedev-agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/genres/card-game/SKILL.md",
+      "computedHash": "ed64e20a0eaa91a38953d9a09aae6ef6e70cf72a1e0c66026d653b15dde413c3"
+    },
+    "frontend-design": {
+      "source": "vercel-labs/agent-eval",
+      "sourceType": "github",
+      "skillPath": "packages/playground/.agents/skills/frontend-design/SKILL.md",
+      "computedHash": "537c1df9d0c694ecf9139a911f9ad0bd111a7ebc173a55457568459e543fe75b"
+    }
+  }
+}
