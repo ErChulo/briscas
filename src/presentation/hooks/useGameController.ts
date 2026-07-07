@@ -107,7 +107,8 @@ export function useGameController() {
         if (!cancelled) {
           setOpenGames(rooms);
         }
-      } catch {
+      } catch (error) {
+        console.error('[load] Firestore error:', error);
         if (!cancelled) {
           setOpenGames([]);
         }
@@ -344,6 +345,7 @@ export function useGameController() {
     try {
       await action();
     } catch (error) {
+      console.error('[run] Action error:', error);
       setMessage(error instanceof Error ? error.message : 'Ocurrió un error inesperado.');
     } finally {
       setBusy(false);
