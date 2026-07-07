@@ -389,7 +389,10 @@ export class GameEngine {
     return {
       ...state,
       players,
-      version: state.version + 1,
+      // Don't increment version — heartbeats must not collide with game-action
+      // versions. The onSnapshot subscribe() uses updatedAt as a secondary
+      // ordering key so heartbeat-only updates are still delivered.
+      version: state.version,
       updatedAt: now,
     };
   }

@@ -11,6 +11,9 @@ export interface HeartbeatCommand {
 /**
  * Bumps the local player's `lastSeenAt` so other clients can detect abandonment.
  * Intended to be invoked every few seconds while in `Playing`.
+ *
+ * Uses a Firestore transaction so the heartbeat never overwrites a concurrent
+ * game-action write (e.g. a card play that incremented the game version).
  */
 export class HeartbeatUseCase {
   public constructor(
@@ -20,16 +23,18 @@ export class HeartbeatUseCase {
   ) {}
 
   public async execute(command: HeartbeatCommand): Promise<void> {
-    const state = await this.repository.getGame(command.gameId);
-    if (!state || state.status !== GameStatus.Playing) {
-      return;
-    }
+    try {
+      await this.repository.runTransaction(command.gameId, (state) => {
+        if (state.status !== GameStatus.Playing) {
+          return { state };
+        }
 
-    const next = this.engine.updatePlayerHeartbeat(state, command.playerId, this.clock.now());
-    if (next === state) {
-      return;
+        const next = this.engine.updatePlayerHeartbeat(state, command.playerId, this.clock.now());
+        return { state: next };
+      });
+    } catch {
+      // Transaction failed (e.g. game not found, concurrent write) — silently
+      // ignore so a single missed heartbeat doesn't crash the loop.
     }
-
-    await this.repository.updateGame({ state: next });
   }
 }

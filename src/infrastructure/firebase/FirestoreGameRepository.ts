@@ -128,6 +128,7 @@ export class FirestoreGameRepository implements GameRepository {
 
   public subscribe(gameId: GameId, onChange: (state: GameState | null) => void): () => void {
     let latestVersion = -1;
+    let latestUpdatedAt = -1;
     let unsub: (() => void) | null = null;
     let cancelled = false;
     let retryCount = 0;
@@ -151,8 +152,11 @@ export class FirestoreGameRepository implements GameRepository {
       const gameDocument = snapshot.data() as StoredGameDocument;
       if (this.hasEmbeddedPlayers(gameDocument)) {
         const freshState = GameStateMapper.fromData(gameDocument as SerializedGameState);
-        if (freshState.version > latestVersion) {
+        // Accept updates if version is newer OR if heartbeat updated players
+        // without changing the version.
+        if (freshState.version > latestVersion || freshState.updatedAt > latestUpdatedAt) {
           latestVersion = freshState.version;
+          latestUpdatedAt = freshState.updatedAt;
           onChange(freshState);
         }
         return;
@@ -165,8 +169,9 @@ export class FirestoreGameRepository implements GameRepository {
           }
 
           const freshState = this.fromDocuments(gameDocument, players.filter(Boolean));
-          if (freshState.version > latestVersion) {
+          if (freshState.version > latestVersion || freshState.updatedAt > latestUpdatedAt) {
             latestVersion = freshState.version;
+            latestUpdatedAt = freshState.updatedAt;
             onChange(freshState);
           }
         })
@@ -220,8 +225,9 @@ export class FirestoreGameRepository implements GameRepository {
           const gameDocument = cached.data() as StoredGameDocument;
           if (this.hasEmbeddedPlayers(gameDocument)) {
             const cachedState = GameStateMapper.fromData(gameDocument as SerializedGameState);
-            if (cachedState.version > latestVersion) {
+            if (cachedState.version > latestVersion || cachedState.updatedAt > latestUpdatedAt) {
               latestVersion = cachedState.version;
+              latestUpdatedAt = cachedState.updatedAt;
               onChange(cachedState);
             }
           }
