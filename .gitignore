@@ -11,3 +11,4 @@ coverage/
 *.docx
 imagenes-cartas/
 .DS_Store
+test-results/
