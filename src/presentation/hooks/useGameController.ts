@@ -252,7 +252,10 @@ export function useGameController() {
 
       try {
         const nextState = await withActiveOnlineTimeout(
-          activeUseCases().playCard.execute({ gameId: gameState.gameId, playerId, cardId }),
+          activeUseCases().playCard.execute(
+            { gameId: gameState.gameId, playerId, cardId },
+            optimisticState ?? undefined,
+          ),
         );
         setState(nextState);
       } catch (error) {

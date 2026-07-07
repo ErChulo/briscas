@@ -13,7 +13,15 @@ export interface PlayCardCommand {
   readonly cardId: string;
 }
 
-/** Applies a card play atomically and lets the engine resolve/draw if a trick ends. */
+/**
+ * Applies a card play atomically and lets the engine resolve/draw if a trick ends.
+ *
+ * When `currentState` is provided (the optimistic state already computed locally),
+ * skips the Firestore read inside the transaction and writes directly — saving
+ * one network round-trip (~100-300ms).  Falls back to a full transaction when
+ * `currentState` is not supplied (e.g. local mode, or if the caller wants a
+ * server-authoritative read).
+ */
 export class PlayCardUseCase {
   public constructor(
     private readonly repository: GameRepository,
@@ -22,10 +30,17 @@ export class PlayCardUseCase {
     private readonly clock: Clock,
   ) {}
 
-  public async execute(command: PlayCardCommand): Promise<GameState> {
+  public async execute(command: PlayCardCommand, currentState?: GameState): Promise<GameState> {
+    const now = this.clock.now();
+    const card = Card.fromId(command.cardId);
+
+    if (currentState) {
+      const nextState = this.engine.playCard(currentState, command.playerId, card, now);
+      await this.repository.updateGame({ state: nextState });
+      return nextState;
+    }
+
     const update = await this.repository.runTransaction(command.gameId, (state) => {
-      const now = this.clock.now();
-      const card = Card.fromId(command.cardId);
       const nextState = this.engine.playCard(state, command.playerId, card, now);
 
       return {

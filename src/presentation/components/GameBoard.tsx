@@ -417,7 +417,7 @@ export function GameBoard({
       {fourPlayer ? (
         <section className="table-area table-area--4p" aria-label="Mesa de juego" ref={tableAreaRef}>
           <div className="deck-trump-zone-4p">
-            <div className="stock-stack" aria-label="Mazo sobre carta de triunfo horizontal">
+            <div className="stock-stack" aria-label="Mazo y carta de triunfo">
               {state.trumpCard ? (
                 <div className={`trump-card-face ${state.deck.isEmpty ? 'trump-card-face--ghost' : ''}`}>
                   <CardView card={state.trumpCard} label={`Triunfo: ${state.trumpCard.toString()}`} />
@@ -426,29 +426,6 @@ export function GameBoard({
               <div className={`stock-deck-card ${state.deck.isEmpty ? 'stock-deck-card--empty' : ''}`}>
                 {state.deck.isEmpty ? <span>Mazo vacío</span> : <CardView hidden label="Mazo de cartas" />}
               </div>
-            </div>
-            {state.trumpCard ? (
-              <p className="trump-label">Triunfo: {state.trumpCard.toString()}</p>
-            ) : (
-              <p>Sin triunfo visible</p>
-            )}
-            <div className="stock-actions-4p" aria-label="Acciones de partida">
-              {availableSwapRank ? (
-                <button
-                  type="button"
-                  className="swap-action"
-                  disabled={busy || Boolean(capturingTrick)}
-                  onClick={() => void onSwapTrump(availableSwapRank)}
-                >
-                  {swapButtonLabel(availableSwapRank)}
-                </button>
-              ) : null}
-              <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={() => void onReset()}>
-                Nueva ronda
-              </button>
-              <button type="button" className="secondary" onClick={onLeave}>
-                Menú
-              </button>
             </div>
           </div>
 
