@@ -12,6 +12,12 @@
       "sourceType": "github",
       "skillPath": "packages/playground/.agents/skills/frontend-design/SKILL.md",
       "computedHash": "537c1df9d0c694ecf9139a911f9ad0bd111a7ebc173a55457568459e543fe75b"
+    },
+    "playwright-visual-testing": {
+      "source": "manutej/luxor-claude-marketplace",
+      "sourceType": "github",
+      "skillPath": "plugins/luxor-specialized-tools/skills/playwright-visual-testing/SKILL.md",
+      "computedHash": "c942ebb478c672f41d4dbf673d0a6b04584ba8bd7bdf2c5b1f42e0d2f59bc249"
     }
   }
 }
