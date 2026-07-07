@@ -96,6 +96,10 @@ export class Player {
     if (this.abandonedAt !== null) {
       return false;
     }
+    if (this.lastSeenAt === 0) {
+      // Brand-new player who has not posted a heartbeat yet — never stale.
+      return false;
+    }
     return nowMs - this.lastSeenAt > thresholdMs;
   }
 }

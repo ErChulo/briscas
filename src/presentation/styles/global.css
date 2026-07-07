@@ -1893,6 +1893,19 @@ img.card-view {
     width: calc(var(--card-4p-size) * 0.85);
     height: calc(var(--card-4p-size) * 1.34);
   }
+
+  /* On cellphone-sized screens the left/right side hands are rotated 90°
+     and stacked vertically so they don't overflow the narrow viewport. */
+  .table-area--4p .seat-4p--left .mini-hand,
+  .table-area--4p .seat-4p--right .mini-hand {
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .table-area--4p .seat-4p--left .mini-hand > .card-back,
+  .table-area--4p .seat-4p--right .mini-hand > .card-back {
+    transform: rotate(90deg);
+  }
 }
 
 @media (max-width: 430px) {

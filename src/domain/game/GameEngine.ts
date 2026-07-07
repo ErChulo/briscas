@@ -54,6 +54,9 @@ export class GameEngine {
       0,
       0,
       this.teamIdForSeat(input.variant, 0),
+      true,
+      input.now,
+      null,
     );
 
     const scores = this.initialScores([host]);
@@ -104,6 +107,9 @@ export class GameEngine {
       0,
       0,
       this.teamIdForSeat(state.variant, seatIndex),
+      true,
+      now,
+      null,
     );
     const players = [...state.players, player];
 
@@ -125,11 +131,16 @@ export class GameEngine {
     const deal = this.dealer.dealInitialHands(this.sortedPlayers(state.players), seed);
     const firstPlayer = this.playerAfterSeat(deal.players, state.dealerSeatIndex);
     const scores = this.initialScores(deal.players);
+    // The dealer constructs fresh Player objects, which wipes any previous
+    // `lastSeenAt`. Re-stamp every player with the current timestamp so the
+    // abandonment detector doesn't flag the whole table the instant the
+    // round starts.
+    const stampedPlayers = deal.players.map((player) => player.withLastSeen(now));
 
     return {
       ...state,
       status: GameStatus.Playing,
-      players: deal.players,
+      players: stampedPlayers,
       deck: deal.deck,
       trumpCard: deal.deck.trumpCard,
       currentTrick: new Trick(firstPlayer.id),
@@ -292,7 +303,7 @@ export class GameEngine {
   public resetGame(state: GameState, now: number): GameState {
     const players = this.sortedPlayers(state.players).map(
       (player) =>
-        new Player(player.id, player.displayName, player.seatIndex, new Hand(), 0, 0, player.teamId, player.connected, 0, null),
+        new Player(player.id, player.displayName, player.seatIndex, new Hand(), 0, 0, player.teamId, player.connected, now, null),
     );
     const scores = this.initialScores(players);
 
