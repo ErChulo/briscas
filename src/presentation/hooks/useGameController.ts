@@ -188,9 +188,7 @@ export function useGameController() {
       }
 
       const auth = new FirebaseAuthGateway();
-      console.log('[createOnline] called with displayName:', displayName, 'variant:', variant);
       const player = await withOnlineTimeout(auth.signInAnonymously(displayName));
-      console.log('[createOnline] player after signIn:', player);
       const repository = getOnlineRepository();
       const useCases = getOnlineUseCases();
       const game = await withOnlineTimeout(useCases.createGame.execute({
@@ -198,7 +196,6 @@ export function useGameController() {
         hostDisplayName: player.displayName,
         variant,
       }));
-      console.log('[createOnline] game after create — players:', game.players.map((p) => ({ id: p.id, displayName: p.displayName })));
 
       setCurrentPlayer({ id: player.uid, displayName: player.displayName });
       setViewPlayerId(player.uid);
@@ -216,15 +213,12 @@ export function useGameController() {
       }
 
       const auth = new FirebaseAuthGateway();
-      console.log('[joinOnline] called with displayName:', displayName, 'gameId:', gameId);
       const player = await withOnlineTimeout(auth.signInAnonymously(displayName));
-      console.log('[joinOnline] player after signIn:', player);
       const repository = getOnlineRepository();
       const useCases = getOnlineUseCases();
       const game = await withOnlineTimeout(
         useCases.joinGame.execute({ gameId, playerId: player.uid, displayName: player.displayName }),
       );
-      console.log('[joinOnline] game after join — players:', game.players.map((p) => ({ id: p.id, displayName: p.displayName })));
 
       setCurrentPlayer({ id: player.uid, displayName: player.displayName });
       setViewPlayerId(player.uid);
@@ -309,12 +303,8 @@ export function useGameController() {
 
   async function subscribeTo(repository: GameRepository, gameId: string, initialState?: GameState) {
     unsubscribe.current?.();
-    unsubscribe.current = repository.subscribe(gameId, (nextState) => {
-      console.log('[subscribeTo] snapshot received — version:', nextState?.version, 'players:', nextState?.players.map((p) => ({ id: p.id, displayName: p.displayName })));
-      setState(nextState);
-    });
+    unsubscribe.current = repository.subscribe(gameId, setState);
     if (initialState) {
-      console.log('[subscribeTo] setting initialState — version:', initialState.version, 'players:', initialState.players.map((p) => ({ id: p.id, displayName: p.displayName })));
       setState(initialState);
       return;
     }

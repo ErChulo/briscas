@@ -134,7 +134,6 @@ export class FirestoreGameRepository implements GameRepository {
             const cachedState = GameStateMapper.fromData(gameDocument as SerializedGameState);
             if (cachedState.version > latestVersion) {
               latestVersion = cachedState.version;
-              console.log('[Repo] subscribe cache hit, version:', cachedState.version, 'players:', cachedState.players.map((p) => p.displayName));
               onChange(cachedState);
             }
           }
@@ -153,7 +152,6 @@ export class FirestoreGameRepository implements GameRepository {
         const freshState = GameStateMapper.fromData(gameDocument as SerializedGameState);
         if (freshState.version > latestVersion) {
           latestVersion = freshState.version;
-          console.log('[Repo] subscribe snapshot, version:', freshState.version, 'players:', freshState.players.map((p) => p.displayName));
           onChange(freshState);
         }
         return;
