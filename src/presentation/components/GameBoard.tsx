@@ -63,6 +63,17 @@ export function GameBoard({
   const [openScoreStatsKey, setOpenScoreStatsKey] = useState<string | null>(null);
   const viewPlayer = state.players.find((player) => player.id === viewPlayerId) ?? state.players[0];
   const opponents = state.players.filter((player) => player.id !== viewPlayer.id);
+  const fourPlayer = state.players.length > 2;
+  const sortedOpponents = fourPlayer
+    ? [...opponents].sort((a, b) => a.seatIndex - b.seatIndex)
+    : opponents;
+  const gridPositions = fourPlayer
+    ? sortedOpponents.map((opp) => {
+        const relative = (opp.seatIndex - viewPlayer.seatIndex + 4) % 4;
+        const position = relative === 1 ? 'right' : relative === 2 ? 'across' : 'left';
+        return { player: opp, position } as const;
+      })
+    : [];
   const activePlayerName = state.players.find((player) => player.id === state.currentPlayerId)?.displayName ?? 'Nadie';
   const availableSwapRank = availableTrumpSwapRank(state, viewPlayer.id);
   const scoreStatsKey = state.status === GameStatus.Ended ? `${state.gameId}:${state.roundNumber}:${state.version}` : null;
@@ -403,6 +414,95 @@ export function GameBoard({
           {swapNotification}
         </div>
       ) : null}
+      {fourPlayer ? (
+        <section className="table-area table-area--4p" aria-label="Mesa de juego" ref={tableAreaRef}>
+          <div className="deck-trump-zone-4p">
+            <div className="stock-stack" aria-label="Mazo sobre carta de triunfo horizontal">
+              {state.trumpCard ? (
+                <div className={`trump-card-face ${state.deck.isEmpty ? 'trump-card-face--ghost' : ''}`}>
+                  <CardView card={state.trumpCard} label={`Triunfo: ${state.trumpCard.toString()}`} />
+                </div>
+              ) : null}
+              <div className={`stock-deck-card ${state.deck.isEmpty ? 'stock-deck-card--empty' : ''}`}>
+                {state.deck.isEmpty ? <span>Mazo vacío</span> : <CardView hidden label="Mazo de cartas" />}
+              </div>
+            </div>
+            {state.trumpCard ? (
+              <p className="trump-label">Triunfo: {state.trumpCard.toString()}</p>
+            ) : (
+              <p>Sin triunfo visible</p>
+            )}
+            <div className="stock-actions-4p" aria-label="Acciones de partida">
+              {availableSwapRank ? (
+                <button
+                  type="button"
+                  className="swap-action"
+                  disabled={busy || Boolean(capturingTrick)}
+                  onClick={() => void onSwapTrump(availableSwapRank)}
+                >
+                  {swapButtonLabel(availableSwapRank)}
+                </button>
+              ) : null}
+              <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={() => void onReset()}>
+                Nueva ronda
+              </button>
+              <button type="button" className="secondary" onClick={onLeave}>
+                Menú
+              </button>
+            </div>
+          </div>
+
+          {gridPositions.filter((p) => p.position === 'across').map((p) => (
+            <div className="player-zone-4p player-zone-4p--top" key={p.player.id}>
+              <OpponentHand player={p.player} active={state.currentPlayerId === p.player.id} />
+            </div>
+          ))}
+
+          <div className="trick-zone-4p" aria-label="Baza actual" ref={trickZoneRef}>
+            {displayedPlays.length === 0 ? <p>La baza está vacía.</p> : null}
+            {capturingTrick ? <p className="trick-winner-label">Baza para {playerName(state, capturingTrick.winnerId)}</p> : null}
+            {displayedPlays.map((play) => (
+              <div
+                key={`${capturingTrick?.version ?? 'current'}-${play.playerId}-${play.card.id}`}
+                className={`played-card ${capturingTrick ? 'played-card--capturing' : ''}`}
+                data-play-key={playKeyFor(play)}
+              >
+                <CardView card={play.card} label={`${playerName(state, play.playerId)} jugó ${play.card.toString()}`} />
+                <span>{playerName(state, play.playerId)}</span>
+              </div>
+            ))}
+          </div>
+
+          {gridPositions.filter((p) => p.position === 'left').map((p) => (
+            <div className="player-zone-4p player-zone-4p--left" key={p.player.id}>
+              <OpponentHand player={p.player} active={state.currentPlayerId === p.player.id} />
+            </div>
+          ))}
+
+          {gridPositions.filter((p) => p.position === 'right').map((p) => (
+            <div className="player-zone-4p player-zone-4p--right" key={p.player.id}>
+              <OpponentHand player={p.player} active={state.currentPlayerId === p.player.id} />
+            </div>
+          ))}
+
+          <section className="hand-panel-4p" aria-label={`Mano de ${viewPlayer.displayName}`} data-player-target={viewPlayer.id}>
+            <div className="hand-row">
+              {viewPlayer.hand.toArray().map((card) => {
+                const validation = rules.canPlayCard(state, viewPlayer.id, card);
+                return (
+                  <CardView
+                    key={card.id}
+                    card={card}
+                    dataCardId={card.id}
+                    disabled={busy || Boolean(capturingTrick) || !validation.valid}
+                    onClick={() => void onPlayCard(card.id)}
+                  />
+                );
+              })}
+            </div>
+          </section>
+        </section>
+      ) : (
       <section className="table-area" aria-label="Mesa de juego" ref={tableAreaRef}>
         <header className="game-topbar panel">
           <div>
@@ -537,6 +637,7 @@ export function GameBoard({
         </div>
 
       </section>
+      )}
 
       {state.status === GameStatus.Ended && scoreStatsOpen ? (
         <div

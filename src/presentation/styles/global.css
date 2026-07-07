@@ -430,6 +430,171 @@ select {
   min-height: 0;
 }
 
+/* ── 4-player layout ─────────────────────────────────────────── */
+
+.table-area--4p {
+  --card-4p-size: clamp(4rem, min(8vw, 14vh), 7.5rem);
+
+  grid-template-columns: 0.5fr 1fr 0.5fr;
+  grid-template-rows: auto 1.2fr 1.2fr auto;
+  grid-template-areas:
+    "deck-zone   across-zone  deck-zone"
+    "left-zone   trick-zone   right-zone"
+    "left-zone   trick-zone   right-zone"
+    "left-zone   hand-zone    right-zone";
+}
+
+.deck-trump-zone-4p {
+  grid-area: deck-zone;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+}
+
+.deck-trump-zone-4p .stock-stack {
+  --card-width: var(--card-4p-size);
+  display: flex;
+  flex-direction: row-reverse;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.deck-trump-zone-4p .trump-card-face {
+  position: relative;
+  width: var(--card-4p-size);
+  height: calc(var(--card-4p-size) * 1.575);
+  margin-left: calc(var(--card-4p-size) * -0.35);
+  z-index: 1;
+}
+
+.deck-trump-zone-4p .stock-deck-card {
+  width: var(--card-4p-size);
+  height: calc(var(--card-4p-size) * 1.575);
+}
+
+.deck-trump-zone-4p .trump-label {
+  font-size: 0.65rem;
+  color: var(--copper-light);
+  text-align: center;
+  max-width: calc(var(--card-4p-size) * 2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deck-trump-zone-4p .stock-actions-4p {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  width: 100%;
+  max-width: calc(var(--card-4p-size) * 2.2);
+}
+
+.deck-trump-zone-4p .stock-actions-4p button {
+  font-size: 0.55rem;
+  padding: 0.2rem 0.4rem;
+  white-space: nowrap;
+}
+
+.player-zone-4p--top {
+  grid-area: across-zone;
+  justify-self: center;
+}
+
+.player-zone-4p--left {
+  grid-area: left-zone;
+  align-self: center;
+}
+
+.player-zone-4p--right {
+  grid-area: right-zone;
+  align-self: center;
+}
+
+.player-zone-4p--left .opponent-hand,
+.player-zone-4p--right .opponent-hand {
+  display: flex;
+  flex-direction: column;
+}
+
+.table-area--4p .opponent-hand {
+  --card-width: var(--card-4p-size);
+}
+
+.table-area--4p .opponent-hand strong {
+  display: block;
+  font-size: 0.6rem;
+  color: var(--gold);
+  text-align: center;
+  margin-bottom: 0.15rem;
+  white-space: nowrap;
+}
+
+.table-area--4p .mini-hand {
+  justify-content: center;
+}
+
+.table-area--4p .card-back,
+.table-area--4p .card-view {
+  width: var(--card-4p-size);
+  height: calc(var(--card-4p-size) * 1.575);
+}
+
+.table-area--4p .card-back {
+  width: calc(var(--card-4p-size) * 0.6);
+}
+
+.trick-zone-4p {
+  grid-area: trick-zone;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  align-content: center;
+  gap: var(--card-gap);
+  min-height: 0;
+  overflow: visible;
+  position: relative;
+}
+
+.trick-zone-4p .played-card {
+  position: relative;
+}
+
+.trick-zone-4p .played-card .card-view {
+  width: var(--card-4p-size);
+  height: calc(var(--card-4p-size) * 1.575);
+}
+
+.trick-zone-4p .played-card span {
+  display: none;
+}
+
+.hand-panel-4p {
+  grid-area: hand-zone;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  min-height: 0;
+  overflow: visible;
+}
+
+.hand-panel-4p .hand-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--card-gap);
+}
+
+.hand-panel-4p .card-view {
+  width: var(--card-4p-size);
+  height: calc(var(--card-4p-size) * 1.575);
+}
+
 .play-column {
   display: grid;
   grid-template-rows: var(--trick-zone-height) auto;
@@ -1184,6 +1349,13 @@ img.card-view {
   .open-room-card {
     grid-template-columns: 1fr;
   }
+
+  .table-area--4p {
+    --card-4p-size: clamp(4rem, min(7vw, 12vh), 7rem);
+
+    grid-template-columns: 0.45fr 1fr 0.45fr;
+    grid-template-rows: auto 1.2fr 1.2fr auto;
+  }
 }
 
 @media (max-width: 640px) {
@@ -1642,6 +1814,31 @@ img.card-view {
     border-radius: 0.55rem;
     padding: 0.42rem;
   }
+
+  .table-area--4p {
+    --card-4p-size: clamp(3.2rem, min(10vw, 10vh), 5rem);
+
+    grid-template-columns: 0.4fr 1fr 0.4fr;
+    grid-template-rows: auto 1.1fr 1.1fr auto;
+    padding: 0.2rem;
+  }
+
+  .table-area--4p .opponent-hand strong {
+    font-size: 0.5rem;
+  }
+
+  .table-area--4p .card-back {
+    width: calc(var(--card-4p-size) * 0.5);
+  }
+
+  .table-area--4p .stock-actions-4p button {
+    font-size: 0.45rem;
+    padding: 0.15rem 0.3rem;
+  }
+
+  .table-area--4p .trump-label {
+    font-size: 0.5rem;
+  }
 }
 
 @media (max-width: 430px) {
@@ -1674,6 +1871,26 @@ img.card-view {
   .stock-zone small {
     font-size: 0.52rem;
   }
+
+  .table-area--4p {
+    --card-4p-size: clamp(2.8rem, min(12vw, 9vh), 4.2rem);
+
+    grid-template-columns: 0.35fr 1fr 0.35fr;
+    grid-template-rows: auto 1fr 1fr auto;
+  }
+
+  .table-area--4p .opponent-hand strong {
+    font-size: 0.45rem;
+  }
+
+  .table-area--4p .card-back {
+    width: calc(var(--card-4p-size) * 0.45);
+  }
+
+  .table-area--4p .stock-actions-4p button {
+    font-size: 0.4rem;
+    padding: 0.12rem 0.25rem;
+  }
 }
 
 @media (max-height: 720px) and (min-width: 641px) {
@@ -1688,6 +1905,18 @@ img.card-view {
 @media (max-width: 940px) and (orientation: landscape) {
   :root {
     --card-width: clamp(5.1rem, min(21vw, 35vh), 8.2rem);
+  }
+
+  .table-area--4p {
+    --card-4p-size: clamp(3rem, min(12vw, 20vh), 5.5rem);
+
+    grid-template-columns: 0.5fr 1fr 0.5fr;
+    grid-template-rows: auto 1.3fr 1.3fr auto;
+  }
+
+  .table-area--4p .trick-zone-4p {
+    max-height: 100%;
+    overflow: hidden;
   }
 }
 
