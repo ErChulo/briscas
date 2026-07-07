@@ -96,6 +96,11 @@ export function GameBoard({
   useEffect(() => {
     if (state.status === GameStatus.Playing) {
       setShowFinalResult(false); // eslint-disable-line react-hooks/set-state-in-effect -- reset derived state on round change
+    } else if (state.status === GameStatus.Ended) {
+      // When the game ends via a path that skips the capturing animation
+      // (e.g. abandonment), still show the result after a short delay.
+      const timer = setTimeout(() => setShowFinalResult(true), 800);
+      return () => clearTimeout(timer); // eslint-disable-line react-hooks/set-state-in-effect -- intentional
     }
   }, [state.status]);
 
@@ -883,7 +888,8 @@ function chartColor(index: number): string {
 function scoreOwnerLabel(state: GameState, ownerId: string): string {
   const teamPlayers = state.players.filter((player) => player.teamId === ownerId);
   if (teamPlayers.length > 0) {
-    return `Equipo ${ownerId.endsWith('0') ? 'A' : 'B'}`;
+    const names = teamPlayers.map((player) => player.displayName).join(', ');
+    return `Equipo ${ownerId.endsWith('0') ? 'A' : 'B'} (${names})`;
   }
 
   return playerName(state, ownerId);
@@ -979,7 +985,8 @@ function resultLabel(state: GameState): string {
   const labels = state.winnerIds.map((winnerId) => {
     const teamPlayers = state.players.filter((player) => player.teamId === winnerId);
     if (teamPlayers.length > 0) {
-      return `Equipo ${winnerId.endsWith('0') ? 'A' : 'B'}`;
+      const names = teamPlayers.map((player) => player.displayName).join(', ');
+      return `Equipo ${winnerId.endsWith('0') ? 'A' : 'B'} (${names})`;
     }
 
     return playerName(state, winnerId);
@@ -996,7 +1003,7 @@ function abandonedResultLabel(state: GameState): string {
   }
   const teamPlayers = state.players.filter((player) => player.teamId === winnerId);
   const winnerLabel = teamPlayers.length > 0
-    ? `Equipo ${winnerId.endsWith('0') ? 'A' : 'B'}`
+    ? `Equipo ${winnerId.endsWith('0') ? 'A' : 'B'} (${teamPlayers.map((player) => player.displayName).join(', ')})`
     : playerName(state, winnerId);
   return `${abandoner.displayName} abandonó la sala. Gana ${winnerLabel}.`;
 }

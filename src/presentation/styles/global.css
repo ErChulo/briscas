@@ -625,6 +625,18 @@ select {
   animation: brisca-turn-pop 0.42s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
 
+/* Mobile 4P: 2×2 grid for trick cards */
+@media (max-width: 640px) {
+  .trick-center-4p {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    place-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem;
+  }
+}
+
 .trick-empty-hint {
   margin: 0;
   color: #c2b988;
@@ -1966,8 +1978,10 @@ img.card-view {
 
   .trick-zone {
     grid-area: trick-zone;
-    flex-wrap: nowrap;
-    justify-content: center;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    place-items: center;
     height: auto;
     min-height: 0;
     overflow: visible;
@@ -1977,6 +1991,7 @@ img.card-view {
     row-gap: var(--card-gap);
   }
 
+  /* 2×2 grid for trick cards on small screens */
   .trick-zone > p:not(.trick-winner-label) {
     display: none;
   }
@@ -1988,7 +2003,8 @@ img.card-view {
   }
 
   .played-card {
-    flex: 0 0 var(--card-width);
+    flex: 0 0 auto;
+    width: calc(var(--card-width) * 0.82);
     gap: 0.08rem;
     font-size: 0.62rem;
     line-height: 1;
@@ -2307,7 +2323,7 @@ img.card-view {
     font-size: 0.52rem;
   }
 
-  .table-area--4p .trick-zone-4p .played-card .card-view {
+  .table-area--4p .trick-center-4p .played-card .card-view {
     width: calc(var(--card-4p-size) * 0.85);
     height: calc(var(--card-4p-size) * 1.34);
   }
