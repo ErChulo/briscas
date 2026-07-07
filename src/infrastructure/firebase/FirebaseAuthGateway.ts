@@ -20,7 +20,7 @@ export class FirebaseAuthGateway implements AuthGateway {
       await updateProfile(user, { displayName });
     }
 
-    return this.fromUser(user, displayName);
+    return { uid: user.uid, displayName, isAnonymous: user.isAnonymous };
   }
 
   public async signInWithGoogle(): Promise<AuthenticatedPlayer> {
