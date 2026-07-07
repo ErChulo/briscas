@@ -28,6 +28,12 @@ export function getFirebaseConfig(): FirebaseWebConfig | null {
     config.appId,
   ];
 
+  const requiredKeys = ['apiKey', 'authDomain', 'projectId', 'storageBucket', 'messagingSenderId', 'appId'] as const;
+  const missing = requiredKeys.filter((key) => !config[key]);
+  if (missing.length > 0) {
+    console.warn(`Firebase config incomplete — missing: ${missing.join(', ')}. Check your .env file and restart the dev server.`);
+  }
+
   return requiredValues.every(Boolean) ? config : null;
 }
 

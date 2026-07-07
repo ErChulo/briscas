@@ -55,7 +55,10 @@ export function GameBoard({
   const animatedDealKey = useRef<string | null>(null);
   const animatedDrawVersion = useRef<number | null>(null);
   const previousHands = useRef<HandSnapshot>({});
+  const previousTrumpCard = useRef(state.trumpCard);
   const [capturingTrick, setCapturingTrick] = useState<AnimatedTrick | null>(null);
+  const [showFinalResult, setShowFinalResult] = useState(false);
+  const [swapNotification, setSwapNotification] = useState<string | null>(null);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
   const [openScoreStatsKey, setOpenScoreStatsKey] = useState<string | null>(null);
   const viewPlayer = state.players.find((player) => player.id === viewPlayerId) ?? state.players[0];
@@ -67,6 +70,26 @@ export function GameBoard({
   const resultText = state.status === GameStatus.Ended ? resultLabel(state) : null;
   const finalScores = state.status === GameStatus.Ended ? finalScoreRows(state) : [];
   const displayedPlays = capturingTrick?.plays ?? state.currentTrick.plays;
+
+  useEffect(() => {
+    if (state.status === GameStatus.Playing) {
+      setShowFinalResult(false); // eslint-disable-line react-hooks/set-state-in-effect -- reset derived state on round change
+    }
+  }, [state.status]);
+
+  useEffect(() => {
+    const prev = previousTrumpCard.current;
+    previousTrumpCard.current = state.trumpCard;
+    if (!prev || !state.trumpCard || prev.equals(state.trumpCard)) {
+      return;
+    }
+    if (!state.trumpExchangeUsed) {
+      return;
+    }
+    setSwapNotification(`Triunfo: ${state.trumpCard.toString()}`); // eslint-disable-line react-hooks/set-state-in-effect -- sync external trump change
+    const timer = setTimeout(() => setSwapNotification(null), 1500);
+    return () => clearTimeout(timer);
+  }, [state.trumpCard, state.trumpExchangeUsed]);
 
   useEffect(() => {
     if (!scoreboardOpen) {
@@ -323,9 +346,13 @@ export function GameBoard({
     );
     const targetRect = (target ?? tableAreaRef.current).getBoundingClientRect();
 
+    const isLastTrick = state.status === GameStatus.Ended;
     const timeline = gsap.timeline({
       onComplete: () => {
         setCapturingTrick((current) => (current?.version === capturingTrick.version ? null : current));
+        if (isLastTrick) {
+          setShowFinalResult(true);
+        }
       },
     });
 
@@ -355,7 +382,7 @@ export function GameBoard({
     return () => {
       timeline.kill();
     };
-  }, [capturingTrick]);
+  }, [capturingTrick, state.status]);
 
   function closeScoreStats() {
     if (scoreStatsKey) {
@@ -371,6 +398,11 @@ export function GameBoard({
 
   return (
     <main className={`game-shell ${localMode ? 'game-shell--local' : 'game-shell--online'}`}>
+      {swapNotification ? (
+        <div className="swap-notification" role="status" aria-live="polite">
+          {swapNotification}
+        </div>
+      ) : null}
       <section className="table-area" aria-label="Mesa de juego" ref={tableAreaRef}>
         <header className="game-topbar panel">
           <div>
@@ -394,7 +426,7 @@ export function GameBoard({
           ) : null}
         </div>
 
-        {state.status === GameStatus.Ended ? (
+        {state.status === GameStatus.Ended && showFinalResult ? (
           <section className="final-result-card panel" aria-live="polite" aria-label="Resultado final">
             <p className="eyebrow">Resultado final</p>
             <h2>{resultText}</h2>
@@ -614,7 +646,6 @@ function ScoreEvolutionChart({ state }: { readonly state: GameState }) {
           <p className="eyebrow">Estadisticas</p>
           <h2 id="score-evolution-title">Evolucion acumulada</h2>
         </div>
-        <p>{Math.max(history.length - 1, 0)} bazas jugadas</p>
       </div>
       <svg className="score-chart" viewBox="0 0 820 320" role="img" aria-label="Grafica de puntuacion acumulada por baza">
         <rect width="820" height="320" rx="20" fill="#000" />

@@ -75,6 +75,16 @@ export function useGameController() {
     sounds.current.play(state.status === GameStatus.Ended ? 'win' : 'capture');
   }, [state?.lastCompletedTrick, state?.status, state?.version]);
 
+  useEffect(() => {
+    function unlockOnInteraction() {
+      sounds.current.unlock();
+      document.removeEventListener('pointerdown', unlockOnInteraction);
+    }
+
+    document.addEventListener('pointerdown', unlockOnInteraction);
+    return () => document.removeEventListener('pointerdown', unlockOnInteraction);
+  }, []);
+
   useEffect(() => () => unsubscribe.current?.(), []);
 
   useEffect(() => {

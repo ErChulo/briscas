@@ -73,7 +73,7 @@ export function MainMenu({
         </div>
 
         {!firebaseConfigured ? (
-          <p className="hint">El modo online no está configurado. Copia `.env.example` a `.env` para activarlo.</p>
+          <p className="hint">Firebase no está disponible. Verifica que .env tenga las credenciales y reinicia el servidor de desarrollo.</p>
         ) : null}
 
         <form
