@@ -8,7 +8,7 @@ service cloud.firestore {
 
     function isParticipant(gameId) {
       return signedIn()
-        && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerIds;
+        && exists(/databases/$(database)/documents/games/$(gameId)/players/$(request.auth.uid));
     }
 
     function isWaitingGame(gameId) {
