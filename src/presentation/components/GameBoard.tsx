@@ -443,7 +443,7 @@ export function GameBoard({
               </span>
             ) : (
               <span>
-                {state.abandonedPlayerIds.length > 0 ? 'Partida interrumpida' : 'Esperando…'}
+                {state.abandonedPlayerIds.length > 0 ? 'Partida interrumpida' : state.status === GameStatus.Ended ? 'Partida terminada' : 'Esperando…'}
               </span>
             )}
           </div>
@@ -529,6 +529,7 @@ export function GameBoard({
               })}
             </div>
           </section>
+
         </section>
       ) : (
       <section className="table-area" aria-label="Mesa de juego" ref={tableAreaRef}>
@@ -666,6 +667,32 @@ export function GameBoard({
 
       </section>
       )}
+
+      {state.status === GameStatus.Ended && showFinalResult ? (
+        <section className="final-result-card panel" aria-live="polite" aria-label="Resultado final">
+          <p className="eyebrow">Resultado final</p>
+          <h2>{resultText}</h2>
+          <dl>
+            {finalScores.map((row) => (
+              <div key={row.ownerId} className={row.winning ? 'is-winner' : ''}>
+                <dt>{row.label}</dt>
+                <dd>{row.score} pts</dd>
+              </div>
+            ))}
+          </dl>
+          <div className="final-result-actions">
+            <button type="button" onClick={openScoreStats}>
+              Ver grafica
+            </button>
+            <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={() => void onReset()}>
+              Nueva ronda
+            </button>
+            <button type="button" className="secondary" onClick={onLeave}>
+              Menú
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       {state.status === GameStatus.Ended && scoreStatsOpen ? (
         <div
