@@ -322,6 +322,7 @@ select {
   padding-left: max(clamp(0.45rem, 1.4vw, 1rem), 3rem, env(safe-area-inset-left, 0));
 }
 
+.notification,
 .swap-notification {
   position: absolute;
   top: 0.75rem;
@@ -338,9 +339,17 @@ select {
   letter-spacing: 0.04em;
   white-space: nowrap;
   pointer-events: none;
-  animation: swap-notify-fade 1.5s ease-in-out forwards;
+  animation: notification-fade var(--duration, 1.5s) ease-in-out forwards;
 }
 
+@keyframes notification-fade {
+  0% { opacity: 0; transform: translateX(-50%) translateY(-6px); }
+  8% { opacity: 1; transform: translateX(-50%) translateY(0); }
+  82% { opacity: 1; }
+  100% { opacity: 0; transform: translateX(-50%) translateY(-4px); }
+}
+
+/* Alias for backward compatibility */
 @keyframes swap-notify-fade {
   0% { opacity: 0; transform: translateX(-50%) translateY(-6px); }
   8% { opacity: 1; transform: translateX(-50%) translateY(0); }
@@ -675,6 +684,45 @@ select {
   max-width: 10rem;
   text-align: center;
   text-shadow: 0 1px 3px rgb(0 0 0 / 80%);
+}
+
+/* Extracted name elements rendered as siblings of .hand (not inside).
+   These are direct children of .table-area--4p so their z-index: 55
+   places them above all hand containers (z-index: 30) within the
+   table's stacking context, preventing names from being hidden behind
+   other hands' cards or badges. */
+.hand__name--north,
+.hand__name--south,
+.hand__name--east,
+.hand__name--west {
+  position: absolute;
+  z-index: 55;
+  pointer-events: none;
+  overflow: visible;
+}
+
+.hand__name--north {
+  left: 50%;
+  top: calc(-0.5 * var(--hand-card-height) + 0.15rem);
+  transform: translateX(-50%);
+}
+
+.hand__name--south {
+  left: 50%;
+  top: calc(100% - 0.5 * var(--hand-card-height));
+  transform: translateX(-50%);
+}
+
+.hand__name--east {
+  top: 50%;
+  right: 0;
+  transform: translate(calc(0.5 * var(--hand-card-height) + 0.35rem), -50%);
+}
+
+.hand__name--west {
+  top: 50%;
+  left: 0;
+  transform: translate(calc(-0.5 * var(--hand-card-height) - 0.35rem), -50%);
 }
 
 .hand__cards {
@@ -2623,7 +2671,7 @@ img.card-view {
   }
 
   /* West name: vertical, inside board, near card tips */
-  .hand--west .hand__name {
+  .hand__name--west {
     position: absolute;
     left: calc(var(--side-card-visible) + var(--layout-clearance));
     top: 50%;
@@ -2654,7 +2702,7 @@ img.card-view {
   }
 
   /* East name: vertical, between card tips and info rail */
-  .hand--east .hand__name {
+  .hand__name--east {
     position: absolute;
     right: calc(var(--info-rail-width) + var(--layout-clearance));
     top: 50%;
@@ -2674,19 +2722,20 @@ img.card-view {
   }
 
   /* ── North hand name sizing ────────────────── */
-  .hand--north .hand__name {
+  .hand__name--north {
     font-size: clamp(0.5rem, 2.5vw, 0.65rem);
     z-index: 55;
     pointer-events: none;
   }
 
-  .hand--south .hand__name {
+  .hand__name--south {
     font-size: clamp(0.55rem, 2.8vw, 0.7rem);
     z-index: 55;
     pointer-events: none;
   }
 
   /* ── Notification lane ─────────────────────── */
+  .notification,
   .swap-notification {
     top: calc(
       var(--safe-top)
@@ -2694,6 +2743,9 @@ img.card-view {
       + var(--notification-gap)
     );
     z-index: 70;
+  }
+
+  .swap-notification {
     animation-duration: 3s;
   }
 
@@ -2846,8 +2898,17 @@ img.card-view {
   outline: 2px dashed orange;
 }
 
+.table-area--4p.debug-layout .notification,
 .table-area--4p.debug-layout .swap-notification {
   outline: 1px dashed white;
+}
+
+.table-area--4p.debug-layout .hand__name--north,
+.table-area--4p.debug-layout .hand__name--east,
+.table-area--4p.debug-layout .hand__name--south,
+.table-area--4p.debug-layout .hand__name--west {
+  outline: 1px dashed cyan;
+  background: rgb(0 255 255 / 8%);
 }
 
 @media (prefers-color-scheme: dark) {

@@ -72,8 +72,54 @@ export function GameBoard({
   const animatedDrawVersion = useRef<number | null>(null);
   const previousHands = useRef<HandSnapshot>({});
   const previousTrumpCard = useRef(state.trumpCard);
+  /* ── Notification queue ────────────────── */
+  type NotificationType = 'swap' | 'trick-winner' | 'round-result' | 'turn-event' | 'error';
+
+  interface QueuedNotification {
+    readonly id: string;
+    readonly type: NotificationType;
+    readonly text: string;
+    readonly durationMs: number;
+  }
+
+  const NOTIFICATION_DURATIONS: Record<NotificationType, number> = {
+    'swap': 2000,
+    'trick-winner': 2800,
+    'round-result': 4000,
+    'turn-event': 2200,
+    'error': 3000,
+  };
+
+  const [notificationQueue, setNotificationQueue] = useState<readonly QueuedNotification[]>([]);
+  const [activeNotification, setActiveNotification] = useState<QueuedNotification | null>(null);
+
+  function enqueueNotification(text: string, type: NotificationType) {
+    const id = globalThis.crypto?.randomUUID() ?? `${Date.now()}-${Math.random()}`;
+    setNotificationQueue((prev) => [...prev, { id, type, text, durationMs: NOTIFICATION_DURATIONS[type] }]);
+  }
+
+  /* Process notification queue — show one at a time, sequentially */
+  useEffect(() => {
+    if (activeNotification) {
+      return;
+    }
+    if (notificationQueue.length === 0) {
+      return;
+    }
+
+    const next = notificationQueue[0];
+    setActiveNotification(next);
+    setNotificationQueue((prev) => prev.slice(1));
+
+    const totalDuration = next.durationMs + 450; // fade in 200ms + visible + fade out 250ms
+    const timer = setTimeout(() => {
+      setActiveNotification(null);
+    }, totalDuration);
+
+    return () => clearTimeout(timer);
+  }, [activeNotification, notificationQueue]);
+
   const [capturingTrick, setCapturingTrick] = useState<AnimatedTrick | null>(null);
-  const [swapNotification, setSwapNotification] = useState<string | null>(null);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
   const [openScoreStatsKey, setOpenScoreStatsKey] = useState<string | null>(null);
   // Tick a clock so the 4P "Desconectado…" badge can re-render when the
@@ -139,9 +185,7 @@ export function GameBoard({
     if (!state.trumpExchangeUsed) {
       return;
     }
-    setSwapNotification(`Triunfo: ${state.trumpCard.toString()}`); // eslint-disable-line react-hooks/set-state-in-effect -- sync external trump change
-    const timer = setTimeout(() => setSwapNotification(null), 2800);
-    return () => clearTimeout(timer);
+    enqueueNotification(`Triunfo: ${state.trumpCard.toString()}`, 'swap');
   }, [state.trumpCard, state.trumpExchangeUsed]);
 
   useEffect(() => {
@@ -343,6 +387,10 @@ export function GameBoard({
       winnerId: state.lastTrickWinnerId,
       version: state.version,
     });
+
+    /* Enqueue trick-winner notification */
+    const winnerName = playerName(state, state.lastTrickWinnerId);
+    enqueueNotification(`Baza para ${winnerName}`, 'trick-winner');
   }, [state.lastCompletedTrick, state.lastTrickWinnerId, state.version]);
 
   useLayoutEffect(() => {
@@ -449,11 +497,18 @@ export function GameBoard({
 
   return (
     <main className={`game-shell ${localMode ? 'game-shell--local' : 'game-shell--online'}`}>
-      {swapNotification ? (
-        <div className="swap-notification" role="status" aria-live="polite">
-          {swapNotification}
+      {/* Global notification layer */}
+      {activeNotification ? (
+        <div
+          className={`notification notification--${activeNotification.type}`}
+          role="status"
+          aria-live="polite"
+          style={{ '--duration': `${activeNotification.durationMs + 450}ms` } as React.CSSProperties}
+        >
+          {activeNotification.text}
         </div>
-      ) : null}          {fourPlayer ? (
+      ) : null}
+          {fourPlayer ? (
         <section className="table-area table-area--4p" aria-label="Mesa de juego" ref={tableAreaRef}>
           <div
             className="turn-indicator-4p"
@@ -488,16 +543,16 @@ export function GameBoard({
             </div>
           </div>
 
-          {/* North hand */}
+          {/* North hand — name extracted outside for correct z-index stacking */}
           {playerBySeat.north ? (() => {
             const p = playerBySeat.north!;
             return (
               <div
+                key={`hand-north-${p.id}`}
                 className={`hand hand--north ${state.currentPlayerId === p.id ? 'is-active' : ''}`}
                 data-player-target={p.id}
                 aria-label={`Mano de ${p.displayName}`}
               >
-                <div className="hand__name">{p.displayName}</div>
                 {renderPlayerBadge(p, now, ABANDONMENT_GRACE_MS)}
                 <div className="hand__cards">
                   {Array.from({ length: p.hand.size }, (_, i) => (
@@ -507,17 +562,22 @@ export function GameBoard({
               </div>
             );
           })() : null}
+          {playerBySeat.north ? (
+            <div key={`name-north-${playerBySeat.north!.id}`} className="hand__name hand__name--north">
+              {playerBySeat.north!.displayName}
+            </div>
+          ) : null}
 
           {/* East hand */}
           {playerBySeat.east ? (() => {
             const p = playerBySeat.east!;
             return (
               <div
+                key={`hand-east-${p.id}`}
                 className={`hand hand--east ${state.currentPlayerId === p.id ? 'is-active' : ''}`}
                 data-player-target={p.id}
                 aria-label={`Mano de ${p.displayName}`}
               >
-                <div className="hand__name">{p.displayName}</div>
                 {renderPlayerBadge(p, now, ABANDONMENT_GRACE_MS)}
                 <div className="hand__cards">
                   {Array.from({ length: p.hand.size }, (_, i) => (
@@ -529,17 +589,22 @@ export function GameBoard({
               </div>
             );
           })() : null}
+          {playerBySeat.east ? (
+            <div key={`name-east-${playerBySeat.east!.id}`} className="hand__name hand__name--east">
+              {playerBySeat.east!.displayName}
+            </div>
+          ) : null}
 
           {/* West hand */}
           {playerBySeat.west ? (() => {
             const p = playerBySeat.west!;
             return (
               <div
+                key={`hand-west-${p.id}`}
                 className={`hand hand--west ${state.currentPlayerId === p.id ? 'is-active' : ''}`}
                 data-player-target={p.id}
                 aria-label={`Mano de ${p.displayName}`}
               >
-                <div className="hand__name">{p.displayName}</div>
                 {renderPlayerBadge(p, now, ABANDONMENT_GRACE_MS)}
                 <div className="hand__cards">
                   {Array.from({ length: p.hand.size }, (_, i) => (
@@ -551,14 +616,19 @@ export function GameBoard({
               </div>
             );
           })() : null}
+          {playerBySeat.west ? (
+            <div key={`name-west-${playerBySeat.west!.id}`} className="hand__name hand__name--west">
+              {playerBySeat.west!.displayName}
+            </div>
+          ) : null}
 
           {/* South hand (local player) */}
           <div
+            key={`hand-south-${viewPlayer.id}`}
             className={`hand hand--south ${state.currentPlayerId === viewPlayer.id ? 'is-active' : ''}`}
             aria-label={`Mano de ${viewPlayer.displayName}`}
             data-player-target={viewPlayer.id}
           >
-            <div className="hand__name">{viewPlayer.displayName}</div>
             <div className="hand__cards">
               {viewPlayer.hand.toArray().map((card) => {
                 const validation = rules.canPlayCard(state, viewPlayer.id, card);
@@ -573,6 +643,9 @@ export function GameBoard({
                 );
               })}
             </div>
+          </div>
+          <div className="hand__name hand__name--south">
+            {viewPlayer.displayName}
           </div>
 
           {/* Trick zone with 4 fixed seat-based slots */}
