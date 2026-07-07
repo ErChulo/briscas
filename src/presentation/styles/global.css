@@ -2225,17 +2225,21 @@ img.card-view {
 
   .table-area--4p {
     --card-4p-size: clamp(3.2rem, min(12vw, 8vh), 4.8rem);
-    --side-card-shift: calc(var(--card-4p-size) * var(--card-4p-ar) / 2);
-    padding: 0.15rem;
+    --peek: 30%;
+    /* Room for trump peek at bottom so it doesn't overlap the owner's hand */
+    padding: 0.15rem 0.15rem calc(var(--card-4p-size) * var(--card-4p-ar) / 2 + 0.5rem);
   }
 
-  /* Shift side player cards toward the left/center on mobile */
-  .table-area--4p .seat-4p--left {
-    transform: translate(calc(-1 * var(--peek) - var(--side-card-shift)), -50%);
-  }
-
-  .table-area--4p .seat-4p--right {
-    transform: translate(calc(var(--peek) - var(--side-card-shift)), -50%);
+  /* Ensure all 4P cards use consistent sizing even inside stock/trick zones */
+  .table-area--4p .stock-stack .card-view,
+  .table-area--4p .stock-stack .card-back,
+  .table-area--4p .trick-zone .card-view,
+  .table-area--4p .trick-zone .card-back,
+  .table-area--4p .hand-row .card-view,
+  .table-area--4p .hand-row .card-back,
+  .table-area--4p .owner-hand-4p .card-view {
+    width: var(--card-4p-size);
+    height: calc(var(--card-4p-size) * var(--card-4p-ar));
   }
 }
 
