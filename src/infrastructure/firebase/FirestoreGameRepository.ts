@@ -9,7 +9,10 @@ import {
   runTransaction,
   setDoc,
   where,
+  type DocumentData,
+  type DocumentSnapshot,
   type Firestore,
+  type FirestoreError,
   type Transaction,
 } from 'firebase/firestore';
 import type {
@@ -125,23 +128,21 @@ export class FirestoreGameRepository implements GameRepository {
 
   public subscribe(gameId: GameId, onChange: (state: GameState | null) => void): () => void {
     let latestVersion = -1;
+    let unsub: (() => void) | null = null;
+    let cancelled = false;
+    let retryCount = 0;
+    const MAX_RETRIES = 10;
 
-    void getDocFromCache(this.gameRef(gameId))
-      .then((cached) => {
-        if (cached.exists()) {
-          const gameDocument = cached.data() as StoredGameDocument;
-          if (this.hasEmbeddedPlayers(gameDocument)) {
-            const cachedState = GameStateMapper.fromData(gameDocument as SerializedGameState);
-            if (cachedState.version > latestVersion) {
-              latestVersion = cachedState.version;
-              onChange(cachedState);
-            }
-          }
-        }
-      })
-      .catch(() => undefined);
+    // Accept DocumentSnapshot<DocumentData> to match Firestore SDK overload;
+    // data is cast to StoredGameDocument inside the handler.
+    const handleSnapshot = (snapshot: DocumentSnapshot<DocumentData>): void => {
+      if (cancelled) {
+        return;
+      }
 
-    return onSnapshot(this.gameRef(gameId), (snapshot) => {
+      // Reset retry count on successful snapshot
+      retryCount = 0;
+
       if (!snapshot.exists()) {
         onChange(null);
         return;
@@ -159,14 +160,83 @@ export class FirestoreGameRepository implements GameRepository {
 
       void this.getPlayerDocuments(gameId, gameDocument.playerIds)
         .then((players) => {
+          if (cancelled) {
+            return;
+          }
+
           const freshState = this.fromDocuments(gameDocument, players.filter(Boolean));
           if (freshState.version > latestVersion) {
             latestVersion = freshState.version;
             onChange(freshState);
           }
         })
-        .catch(() => onChange(null));
-    });
+        .catch(() => {
+          if (!cancelled) {
+            onChange(null);
+          }
+        });
+    };
+
+    const handleError = (error: FirestoreError): void => {
+      retryCount += 1;
+      if (retryCount > MAX_RETRIES) {
+        console.error('[FirestoreGameRepository] onSnapshot error — max retries reached.', error);
+        if (!cancelled) {
+          onChange(null);
+        }
+        return;
+      }
+
+      console.warn(
+        `[FirestoreGameRepository] onSnapshot error (attempt ${retryCount}/${MAX_RETRIES}), re-subscribing in 1s:`,
+        error,
+      );
+      unsub = null;
+      if (!cancelled) {
+        setTimeout(() => startListening(), 1_000);
+      }
+    };
+
+    const startListening = (): void => {
+      if (cancelled) {
+        return;
+      }
+
+      unsub = onSnapshot<DocumentData, DocumentData>(
+        this.gameRef(gameId),
+        handleSnapshot,
+        handleError,
+      );
+    };
+
+    // Try cache first
+    void getDocFromCache(this.gameRef(gameId))
+      .then((cached) => {
+        if (cancelled) {
+          return;
+        }
+
+        if (cached.exists()) {
+          const gameDocument = cached.data() as StoredGameDocument;
+          if (this.hasEmbeddedPlayers(gameDocument)) {
+            const cachedState = GameStateMapper.fromData(gameDocument as SerializedGameState);
+            if (cachedState.version > latestVersion) {
+              latestVersion = cachedState.version;
+              onChange(cachedState);
+            }
+          }
+        }
+      })
+      .catch(() => undefined);
+
+    startListening();
+
+    return () => {
+      cancelled = true;
+      if (unsub) {
+        unsub();
+      }
+    };
   }
 
   private async writeState(state: GameState, move?: Move, writePlayers = false): Promise<void> {

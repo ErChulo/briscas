@@ -484,9 +484,10 @@ select {
  */
 
 .table-area--4p {
-  --card-4p-size: clamp(3.4rem, min(11vw, 9vh), 4.6rem);
-  --card-4p-ar: 1.575;            /* height = width * this */
-  --peek: 55%;                    /* how much each opponent hand spills past the viewport */
+  /* All cards in 4P use --card-4p-size for uniform sizing across all seats */
+  --card-4p-size: clamp(4rem, min(10vw, 10vh), 6rem);
+  --card-4p-ar: 1.575;
+  --peek: 55%;
   --turn-ring: 2px solid var(--gold);
 
   position: relative;
@@ -515,6 +516,24 @@ select {
 
 .table-area--4p .mini-hand > .card-back {
   border-radius: 0.12rem;
+}
+
+/* Left/right side player cards: rotated 90° so the long side faces inward,
+   cards stacked vertically touching by their long edge. */
+.table-area--4p .seat-4p--left .mini-hand,
+.table-area--4p .seat-4p--right .mini-hand {
+  flex-direction: column;
+  gap: 1.5px;
+}
+
+.table-area--4p .seat-4p--left .mini-hand > .card-back,
+.table-area--4p .seat-4p--right .mini-hand > .card-back {
+  transform: rotate(90deg);
+}
+
+/* The top opponent stays horizontal */
+.table-area--4p .seat-4p--top .mini-hand {
+  flex-direction: row;
 }
 
 /* Seat wrappers: top / left / right spill past the viewport; bottom stays
@@ -562,8 +581,8 @@ select {
 }
 
 .seat-4p__inner--top    { grid-auto-flow: row; }
-.seat-4p__inner--left   { transform-origin: right center; }
-.seat-4p__inner--right  { transform-origin: left center; }
+.seat-4p__inner--left   { transform-origin: center center; }
+.seat-4p__inner--right  { transform-origin: center center; }
 
 .seat-4p__name {
   font-size: 0.6rem;
@@ -1911,6 +1930,12 @@ img.card-view {
     box-shadow: none;
   }
 
+  /* Keep 4P cards consistent — use --card-4p-size instead of --card-width */
+  .table-area--4p .mini-hand > .card-back {
+    width: var(--card-4p-size);
+    height: calc(var(--card-4p-size) * var(--card-4p-ar));
+  }
+
   .mini-hand > .card-back::after {
     inset: 0.16rem;
   }
@@ -1921,6 +1946,10 @@ img.card-view {
 
   .mini-hand > .card-back img {
     padding: 0.2rem;
+  }
+
+  .table-area--4p .mini-hand > .card-back img {
+    padding: 0.18rem;
   }
 
   .table-center {
@@ -2195,26 +2224,18 @@ img.card-view {
   }
 
   .table-area--4p {
-    --card-4p-size: clamp(3rem, min(12vw, 8vh), 4.5rem);
+    --card-4p-size: clamp(3.2rem, min(12vw, 8vh), 4.8rem);
+    --side-card-shift: calc(var(--card-4p-size) * var(--card-4p-ar) / 2);
     padding: 0.15rem;
   }
 
-  .table-area--4p .trick-zone-4p .played-card .card-view {
-    width: calc(var(--card-4p-size) * 0.85);
-    height: calc(var(--card-4p-size) * 1.34);
+  /* Shift side player cards toward the left/center on mobile */
+  .table-area--4p .seat-4p--left {
+    transform: translate(calc(-1 * var(--peek) - var(--side-card-shift)), -50%);
   }
 
-  /* On cellphone-sized screens the left/right side hands are rotated 90°
-     and stacked vertically so they don't overflow the narrow viewport. */
-  .table-area--4p .seat-4p--left .mini-hand,
-  .table-area--4p .seat-4p--right .mini-hand {
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .table-area--4p .seat-4p--left .mini-hand > .card-back,
-  .table-area--4p .seat-4p--right .mini-hand > .card-back {
-    transform: rotate(90deg);
+  .table-area--4p .seat-4p--right {
+    transform: translate(calc(var(--peek) - var(--side-card-shift)), -50%);
   }
 }
 
@@ -2303,7 +2324,7 @@ img.card-view {
   }
 
   .table-area--4p {
-    --card-4p-size: clamp(3.5rem, min(12vw, 20vh), 6rem);
+    --card-4p-size: clamp(3.8rem, min(12vw, 20vh), 6.5rem);
   }
 
   /* Landscape mode enhancements */
@@ -2332,129 +2353,6 @@ img.card-view {
 @media (min-width: 768px) {
   .table-area--4p {
     --card-4p-size: clamp(5rem, min(10vw, 11vh), 7rem);
-    position: relative;
-    overflow: hidden;
-    grid-template-areas: "trick" "hand";
-    grid-template-rows: 1fr auto;
-  }
-
-  .opponents-bar-4p {
-    display: contents;
-  }
-
-  .player-zone-4p--top,
-  .player-zone-4p--left,
-  .player-zone-4p--right {
-    position: absolute;
-    z-index: 2;
-  }
-
-  .player-zone-4p--top {
-    left: 50%;
-    bottom: 100%;
-    transform: translateX(-50%) translateY(70%);
-  }
-
-  .player-zone-4p--top .opponent-hand {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .player-zone-4p--left {
-    top: 40%;
-    right: 100%;
-    transform: translateY(-50%) translateX(65%);
-  }
-
-  .player-zone-4p--left .opponent-hand {
-    flex-direction: column;
-    align-items: flex-end;
-  }
-
-  .player-zone-4p--left .mini-hand {
-    flex-direction: column;
-    flex-wrap: nowrap;
-  }
-
-  .player-zone-4p--right {
-    top: 40%;
-    left: 100%;
-    transform: translateY(-50%) translateX(-65%);
-  }
-
-  .player-zone-4p--right .opponent-hand {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .player-zone-4p--right .mini-hand {
-    flex-direction: column;
-    flex-wrap: nowrap;
-  }
-
-  .table-area--4p .opponent-hand {
-    flex-direction: column;
-    gap: 0.15rem;
-    background: transparent;
-    padding: 0;
-  }
-
-  .table-area--4p .opponent-hand strong {
-    display: block;
-    font-size: 0.55rem;
-    color: var(--gold);
-    text-align: center;
-    white-space: nowrap;
-  }
-
-  .table-area--4p .mini-hand {
-    gap: 1px;
-  }
-
-  .table-area--4p .mini-hand > .card-back {
-    width: 2rem;
-    height: 2.8rem;
-  }
-
-  .deck-trump-zone-4p {
-    display: flex;
-    position: absolute;
-    top: 0.4rem;
-    right: 0.4rem;
-    flex-direction: row;
-    align-items: flex-end;
-    gap: 0.15rem;
-    z-index: 3;
-  }
-
-  .deck-trump-zone-4p .stock-stack {
-    --card-width: var(--card-4p-size);
-    position: relative;
-    display: flex;
-    flex-direction: row;
-    align-items: flex-end;
-    gap: 0;
-  }
-
-  .deck-trump-zone-4p .trump-card-face {
-    position: relative;
-    width: calc(var(--card-4p-size) * 0.5);
-    height: calc(var(--card-4p-size) * 0.79);
-    z-index: 1;
-    margin: 0;
-    transform: none;
-    flex-shrink: 0;
-  }
-
-  .deck-trump-zone-4p .stock-deck-card {
-    position: relative;
-    width: calc(var(--card-4p-size) * 0.5);
-    height: calc(var(--card-4p-size) * 0.79);
-    left: auto;
-    top: auto;
-    transform: none;
-    flex-shrink: 0;
-    clip-path: inset(50% 0 0 0);
   }
 }
 
@@ -2462,27 +2360,11 @@ img.card-view {
   .table-area--4p {
     --card-4p-size: clamp(5.5rem, min(9vw, 10vh), 7.5rem);
   }
-
-  .player-zone-4p--top .opponent-hand strong,
-  .player-zone-4p--left .opponent-hand strong,
-  .player-zone-4p--right .opponent-hand strong {
-    font-size: 0.65rem;
-  }
-
-  .table-area--4p .mini-hand > .card-back {
-    width: 2.5rem;
-    height: 3.5rem;
-  }
 }
 
 @media (min-width: 1280px) {
   .table-area--4p {
-    --card-4p-size: clamp(6rem, min(8vw, 9vh), 8rem);
-  }
-
-  .table-area--4p .mini-hand > .card-back {
-    width: 3rem;
-    height: 4.2rem;
+    --card-4p-size: clamp(6rem, min(8vw, 9vh), 8.5rem);
   }
 }
 
