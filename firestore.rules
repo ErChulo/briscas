@@ -8,7 +8,7 @@ service cloud.firestore {
 
     function isParticipant(gameId) {
       return signedIn()
-        && exists(/databases/$(database)/documents/games/$(gameId)/players/$(request.auth.uid));
+        && request.auth.uid in get(/databases/$(database)/documents/games/$(gameId)).data.playerIds;
     }
 
     function isWaitingGame(gameId) {
@@ -16,50 +16,22 @@ service cloud.firestore {
         && get(/databases/$(database)/documents/games/$(gameId)).data.status == 'waiting';
     }
 
-    function willBeParticipant() {
-      return signedIn()
-        && request.resource.data.playerIds is list
-        && request.resource.data.playerIds.hasAny([request.auth.uid]);
-    }
-
-    function willBeParticipantAfter(gameId) {
-      return signedIn()
-        && getAfter(/databases/$(database)/documents/games/$(gameId)).data.status == 'waiting'
-        && getAfter(/databases/$(database)/documents/games/$(gameId)).data.playerIds is list
-        && getAfter(/databases/$(database)/documents/games/$(gameId)).data.playerIds.hasAny([request.auth.uid]);
-    }
-
-    function activePlayer(gameId) {
-      return get(/databases/$(database)/documents/games/$(gameId)).data.currentPlayerId == request.auth.uid;
-    }
-
     match /games/{gameId} {
       allow list: if signedIn() && resource.data.status == 'waiting';
       allow read: if isParticipant(gameId)
         || (signedIn() && resource.data.status == 'waiting');
       allow create: if signedIn() && request.resource.data.hostPlayerId == request.auth.uid;
-      allow update: if isParticipant(gameId)
-        || (resource.data.status == 'waiting' && request.resource.data.status == 'waiting' && willBeParticipant());
+      allow update: if isParticipant(gameId);
 
       match /players/{playerId} {
         allow read: if isParticipant(gameId) || isWaitingGame(gameId);
         allow create: if signedIn() && playerId == request.auth.uid;
-        allow update: if signedIn()
-          && (
-            playerId == request.auth.uid
-            || isParticipant(gameId)
-            || (isWaitingGame(gameId) && willBeParticipantAfter(gameId))
-          );
+        allow update: if signedIn() && (playerId == request.auth.uid || isParticipant(gameId));
       }
 
       match /moves/{moveId} {
         allow read: if isParticipant(gameId);
-        allow create: if request.resource.data.playerId == request.auth.uid
-          && (
-            (isParticipant(gameId) && request.resource.data.type != 'PLAY_CARD')
-            || (isParticipant(gameId) && request.resource.data.type == 'PLAY_CARD' && activePlayer(gameId))
-            || request.resource.data.type == 'JOIN_GAME'
-          );
+        allow create: if isParticipant(gameId) && request.auth.uid == request.resource.data.playerId;
       }
     }
 

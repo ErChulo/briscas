@@ -2,6 +2,7 @@ import {
   collection,
   doc,
   getDoc,
+  getDocFromCache,
   getDocs,
   onSnapshot,
   query,
@@ -20,6 +21,7 @@ import type {
 import { GameNotFoundError } from '../../domain/errors/DomainError';
 import type { GameState } from '../../domain/game/GameState';
 import type { Move } from '../../domain/game/Move';
+import { MoveType } from '../../domain/game/Move';
 import { GameStatus, GameVariant, type GameId } from '../../domain/game/Types';
 import {
   GameStateMapper,
@@ -113,7 +115,7 @@ export class FirestoreGameRepository implements GameRepository {
         }
       });
 
-      if (update.move) {
+      if (update.move && this.shouldWriteMove(update.move.type)) {
         transaction.set(this.moveRef(gameId, update.move.id), GameStateMapper.moveToData(update.move) as MoveDocument);
       }
 
@@ -122,6 +124,17 @@ export class FirestoreGameRepository implements GameRepository {
   }
 
   public subscribe(gameId: GameId, onChange: (state: GameState | null) => void): () => void {
+    void getDocFromCache(this.gameRef(gameId))
+      .then((cached) => {
+        if (cached.exists()) {
+          const gameDocument = cached.data() as StoredGameDocument;
+          if (this.hasEmbeddedPlayers(gameDocument)) {
+            onChange(GameStateMapper.fromData(gameDocument as SerializedGameState));
+          }
+        }
+      })
+      .catch(() => undefined);
+
     return onSnapshot(this.gameRef(gameId), (snapshot) => {
       if (!snapshot.exists()) {
         onChange(null);
@@ -148,7 +161,7 @@ export class FirestoreGameRepository implements GameRepository {
       await Promise.all(documents.players.map((player) => setDoc(this.playerRef(state.gameId, player.id), player)));
     }
 
-    if (move) {
+    if (move && this.shouldWriteMove(move.type)) {
       await setDoc(this.moveRef(state.gameId, move.id), GameStateMapper.moveToData(move) as MoveDocument);
     }
   }
@@ -204,5 +217,12 @@ export class FirestoreGameRepository implements GameRepository {
 
   private moveRef(gameId: GameId, moveId: string) {
     return doc(collection(this.gameRef(gameId), 'moves'), moveId);
+  }
+
+  private shouldWriteMove(type: MoveType): boolean {
+    return type === MoveType.CreateGame
+      || type === MoveType.JoinGame
+      || type === MoveType.StartGame
+      || type === MoveType.ResetGame;
   }
 }
