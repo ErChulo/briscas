@@ -50,9 +50,6 @@ test.describe('4P game board layout', () => {
       const deckZone = page.locator('.deck-trump-zone-4p');
       const acrossZone = page.locator('.player-zone-4p--top');
       const trickZone = page.locator('.trick-zone-4p');
-      const leftZone = page.locator('.player-zone-4p--left');
-      const rightZone = page.locator('.player-zone-4p--right');
-      const handZone = page.locator('.hand-panel-4p');
 
       if (await deckZone.isVisible()) {
         const deckBox = await deckZone.boundingBox();
