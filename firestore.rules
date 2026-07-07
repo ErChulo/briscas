@@ -16,7 +16,8 @@ service cloud.firestore {
       allow read: if isParticipant(gameId)
         || (signedIn() && resource.data.status == 'waiting');
       allow create: if signedIn() && request.resource.data.hostPlayerId == request.auth.uid;
-      allow update: if isParticipant(gameId);
+      allow update: if isParticipant(gameId)
+        || (signedIn() && request.auth.uid in request.resource.data.playerIds);
 
       match /players/{playerId} {
         allow read: if signedIn();
@@ -26,7 +27,9 @@ service cloud.firestore {
 
       match /moves/{moveId} {
         allow read: if isParticipant(gameId);
-        allow create: if isParticipant(gameId) && request.auth.uid == request.resource.data.playerId;
+        allow create: if signedIn()
+          && request.auth.uid == request.resource.data.playerId
+          && request.auth.uid in getAfter(/databases/$(database)/documents/games/$(gameId)).data.playerIds;
       }
     }
 
