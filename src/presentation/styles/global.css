@@ -591,7 +591,7 @@ select {
   text-transform: uppercase;
   letter-spacing: 0.06em;
   white-space: nowrap;
-  max-width: 6rem;
+  max-width: min(20vw, 10rem);
   overflow: hidden;
   text-overflow: ellipsis;
 }
@@ -1091,6 +1091,18 @@ select {
   text-align: center;
   transform: translate(-50%, -50%);
   box-shadow: 0 1.6rem 4rem rgb(0 0 0 / 42%), 0 0 2.2rem rgb(245 197 66 / 18%);
+  animation: result-fade-in 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+
+@keyframes result-fade-in {
+  from {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+  to {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1);
+  }
 }
 
 .final-result-card .eyebrow,
@@ -1734,6 +1746,26 @@ img.card-view {
 
   .open-room-card {
     grid-template-columns: 1fr;
+  }
+
+  /* 2×2 grid for trick cards on smaller-than-tablet screens */
+  .trick-zone {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    grid-template-rows: 1fr 1fr;
+    place-items: center;
+  }
+
+  .trick-zone > p:not(.trick-winner-label) {
+    display: none;
+  }
+
+  .played-card {
+    width: calc(var(--card-width) * 0.82);
+  }
+
+  .played-card span {
+    display: none;
   }
 }
 

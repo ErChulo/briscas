@@ -97,10 +97,8 @@ export function GameBoard({
     if (state.status === GameStatus.Playing) {
       setShowFinalResult(false); // eslint-disable-line react-hooks/set-state-in-effect -- reset derived state on round change
     } else if (state.status === GameStatus.Ended) {
-      // When the game ends via a path that skips the capturing animation
-      // (e.g. abandonment), still show the result after a short delay.
-      const timer = setTimeout(() => setShowFinalResult(true), 800);
-      return () => clearTimeout(timer); // eslint-disable-line react-hooks/set-state-in-effect -- intentional
+      // Show result card immediately (smooth CSS fade-in handles the transition).
+      setShowFinalResult(true); // eslint-disable-line react-hooks/set-state-in-effect -- game ended
     }
   }, [state.status]);
 
