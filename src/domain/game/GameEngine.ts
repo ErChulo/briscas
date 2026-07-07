@@ -7,7 +7,6 @@ import {
   IllegalMoveError,
   InvalidGameStateError,
   NotPlayersTurnError,
-  PlayerAlreadyJoinedError,
   RoomFullError,
 } from '../errors/DomainError';
 import { BriscasRules } from '../rules/BriscasRules';
@@ -85,14 +84,13 @@ export class GameEngine {
   }
 
   public joinGame(state: GameState, input: JoinGameInput, now: number): GameState {
+    if (state.status === GameStatus.Waiting && state.players.some((player) => player.id === input.playerId)) {
+      return state;
+    }
+
     const validation = this.rules.canJoin(state, input.playerId);
     if (!validation.valid) {
-      const reason = validation.reason ?? 'No se puede unir a la sala.';
-      if (state.players.some((player) => player.id === input.playerId)) {
-        throw new PlayerAlreadyJoinedError(reason);
-      }
-
-      throw new RoomFullError(reason);
+      throw new RoomFullError(validation.reason ?? 'La sala está llena.');
     }
 
     const seatIndex = state.players.length;
