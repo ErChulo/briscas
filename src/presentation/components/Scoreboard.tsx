@@ -18,8 +18,6 @@ export function Scoreboard({ state }: ScoreboardProps) {
           </div>
         ))}
       </dl>
-      <p>Ronda {state.roundNumber}</p>
-      <p>Versión {state.version}</p>
     </aside>
   );
 }

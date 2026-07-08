@@ -217,11 +217,17 @@ export function useGameController() {
       return;
     }
 
-    const delay = state.lastCompletedTrick ? 2300 : 650;
+    // Bot thinking delay: shorter for first trick, longer for subsequent
+    // This delay is for "thinking" animation only - card visibility is tracked separately
+    const delay = state.lastCompletedTrick ? 1800 : 500;
     const timer = window.setTimeout(() => {
       void localContext.useCases.playCard
         .execute({ gameId: state.gameId, playerId: botPlayerId, cardId })
-        .then(() => sounds.current.play('play'))
+        .then(() => {
+          sounds.current.play('play');
+          // Preload card images for faster rendering
+          preloadCardImages(state);
+        })
         .catch((error) => {
           setMessage(error instanceof Error ? error.message : 'La IA no pudo jugar.');
         });
@@ -481,6 +487,41 @@ function sortConservative(cards: readonly Card[]): readonly Card[] {
 
     return right.captureStrength - left.captureStrength;
   });
+}
+
+/** Preload card images for faster rendering during bot plays */
+function preloadCardImages(state: GameState): void {
+  try {
+    // Preload images for cards in all hands and deck
+    const cardIds = new Set<string>();
+
+    // Cards in player hands
+    for (const player of state.players) {
+      for (const card of player.hand.toArray()) {
+        cardIds.add(card.id);
+      }
+    }
+
+    // Trump card
+    if (state.trumpCard) {
+      cardIds.add(state.trumpCard.id);
+    }
+
+    // Current trick cards
+    for (const play of state.currentTrick.plays) {
+      cardIds.add(play.card.id);
+    }
+
+    // Preload each unique card image
+    for (const cardId of cardIds) {
+      const img = new Image();
+      img.src = `/cards/${cardId}.png`;
+      // Don't await - just fire and forget for preloading
+      img.decode().catch(() => undefined);
+    }
+  } catch {
+    // Preloading is best-effort, don't break game if it fails
+  }
 }
 
 function optimisticPlayCard(state: GameState, playerId: string, cardId: string): GameState | null {

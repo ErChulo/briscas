@@ -42,10 +42,32 @@ const TRICK_ORIENTATIONS: Record<Seat, number> = {
 
 const SEATS: readonly Seat[] = ['north', 'east', 'south', 'west'];
 
+/** Play phases for trick card lifecycle tracking */
+const PlayPhase = Object.freeze({
+  BOT_THINKING: "bot-thinking",
+  CARD_COMMITTED: "card-committed",
+  CARD_RENDERING: "card-rendering",
+  CARD_VISIBLE: "card-visible",
+  TRICK_HOLDING: "trick-holding",
+  TRICK_COLLECTING: "trick-collecting",
+} as const);
+
+type PlayPhaseType = typeof PlayPhase[keyof typeof PlayPhase];
+
+/** Minimum time cards must be fully visible before trick collection (ms) */
+const MIN_BOT_CARD_VISIBLE_MS = 1200;
+const MIN_FINAL_TRICK_CARD_VISIBLE_MS = 1600;
+
 interface AnimatedTrick {
   readonly plays: readonly PlayedCard[];
   readonly winnerId: string;
   readonly version: number;
+}
+
+interface CardVisibilityState {
+  readonly seat: Seat;
+  readonly visibleAt: number | null;
+  readonly phase: PlayPhaseType;
 }
 
 type HandSnapshot = Readonly<Record<string, readonly string[]>>;
@@ -72,6 +94,131 @@ export function GameBoard({
   const animatedDrawVersion = useRef<number | null>(null);
   const previousHands = useRef<HandSnapshot>({});
   const previousTrumpCard = useRef(state.trumpCard);
+
+  /* ── Card visibility tracking for bot plays ────────────────── */
+  const cardVisibilityMap = useRef<Map<Seat, CardVisibilityState>>(new Map());
+  const trickGeneration = useRef(0);
+  const trickCollectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  /** Wait for browser paint using double requestAnimationFrame */
+  function waitForPaint(): Promise<void> {
+    return new Promise((resolve) => {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => resolve());
+      });
+    });
+  }
+
+  /** Wait for card image to decode if present */
+  async function waitForCardImage(cardElement: HTMLElement | null): Promise<void> {
+    if (!cardElement) return;
+    const image = cardElement.querySelector('img');
+    if (!image) return;
+
+    if (!image.complete) {
+      await new Promise<void>((resolve) => {
+        const onLoad = () => { image.removeEventListener('load', onLoad); resolve(); };
+        const onError = () => { image.removeEventListener('error', onError); resolve(); };
+        image.addEventListener('load', onLoad, { once: true });
+        image.addEventListener('error', onError, { once: true });
+      });
+    }
+
+    if (typeof image.decode === 'function') {
+      try {
+        await image.decode();
+      } catch {
+        // Image may already be usable despite decode rejection
+      }
+    }
+  }
+
+  /** Wait for entrance animation to complete */
+  function waitForAnimation(element: HTMLElement, fallbackMs = 500): Promise<void> {
+    return Promise.race([
+      new Promise<void>((resolve) => {
+        element.addEventListener('animationend', () => resolve(), { once: true });
+        element.addEventListener('transitionend', () => resolve(), { once: true });
+      }),
+      new Promise<void>((resolve) => setTimeout(resolve, fallbackMs)),
+    ]);
+  }
+
+  /** Mark a card as fully visible */
+  function markCardVisible(seat: Seat): void {
+    const existing = cardVisibilityMap.current.get(seat);
+    cardVisibilityMap.current.set(seat, {
+      seat,
+      visibleAt: performance.now(),
+      phase: PlayPhase.CARD_VISIBLE,
+    });
+  }
+
+  /** Get card visible timestamp */
+  function getCardVisibleTimestamp(seat: Seat): number | null {
+    return cardVisibilityMap.current.get(seat)?.visibleAt ?? null;
+  }
+
+  /** Check if all cards in a trick are visible */
+  function allCardsVisible(occupiedSeats: readonly Seat[]): boolean {
+    return occupiedSeats.every((seat) => {
+      const state = cardVisibilityMap.current.get(seat);
+      return state?.phase === PlayPhase.CARD_VISIBLE && state.visibleAt !== null;
+    });
+  }
+
+  /** Hold card visible for minimum duration */
+  async function holdVisibleCard(seat: Seat, minimumMs: number): Promise<void> {
+    const visibleAt = getCardVisibleTimestamp(seat);
+    if (visibleAt === null) return;
+
+    const elapsed = performance.now() - visibleAt;
+    const remaining = Math.max(0, minimumMs - elapsed);
+    if (remaining > 0) {
+      await new Promise<void>((resolve) => setTimeout(resolve, remaining));
+    }
+  }
+
+  /** Schedule trick collection with proper timing */
+  function scheduleTrickCollection(
+    occupiedSeats: readonly Seat[],
+    finalSeat: Seat
+  ): void {
+    // Cancel any existing collection timer
+    if (trickCollectionTimer.current !== null) {
+      clearTimeout(trickCollectionTimer.current);
+      trickCollectionTimer.current = null;
+    }
+
+    const generation = ++trickGeneration.current;
+
+    // Wait for all cards to become visible, then hold the final card
+    const checkAndCollect = async () => {
+      // Wait until all cards are visible
+      const maxWait = 5000; // Safety timeout
+      const startWait = performance.now();
+      while (!allCardsVisible(occupiedSeats) && performance.now() - startWait < maxWait) {
+        await new Promise<void>((resolve) => setTimeout(resolve, 50));
+      }
+
+      // Check generation hasn't been invalidated
+      if (generation !== trickGeneration.current) return;
+
+      // All cards visible - now hold the final card for minimum duration
+      await holdVisibleCard(finalSeat, MIN_FINAL_TRICK_CARD_VISIBLE_MS);
+
+      // Check generation again
+      if (generation !== trickGeneration.current) return;
+
+      // Signal that trick can be collected
+      trickCollectionTimer.current = null;
+    };
+
+    trickCollectionTimer.current = setTimeout(() => {
+      void checkAndCollect();
+    }, 100); // Small delay to let initial render settle
+  }
+
   /* ── Notification queue ────────────────── */
   type NotificationType = 'swap' | 'trick-winner' | 'round-result' | 'turn-event' | 'error';
 
@@ -83,7 +230,7 @@ export function GameBoard({
   }
 
   const NOTIFICATION_DURATIONS: Record<NotificationType, number> = {
-    'swap': 2000,
+    'swap': 1500,
     'trick-winner': 2800,
     'round-result': 4000,
     'turn-event': 2200,
@@ -400,6 +547,8 @@ export function GameBoard({
 
     if (state.currentTrick.plays.length === 0) {
       animatedPlayKeys.current.clear();
+      // Reset card visibility for new trick
+      cardVisibilityMap.current.clear();
       return;
     }
 
@@ -415,7 +564,18 @@ export function GameBoard({
         return;
       }
 
+      const seat = seatOf(play.playerId);
+
+      // Mark as rendering
+      cardVisibilityMap.current.set(seat, {
+        seat,
+        visibleAt: null,
+        phase: PlayPhase.CARD_RENDERING,
+      });
+
       animatedPlayKeys.current.add(key);
+
+      // Animate entrance
       gsap.fromTo(
         element,
         {
@@ -433,9 +593,25 @@ export function GameBoard({
           rotation: 0,
           duration: 0.24,
           ease: 'power3.out',
+          onComplete: () => {
+            // After animation completes, wait for paint and mark visible
+            void (async () => {
+              await waitForPaint();
+              await waitForCardImage(element);
+              markCardVisible(seat);
+            })();
+          },
         },
       );
     });
+
+    // Schedule trick collection after all cards are visible
+    const occupiedSeats = state.currentTrick.plays.map((play) => seatOf(play.playerId)) as Seat[];
+    const finalPlay = state.currentTrick.plays[state.currentTrick.plays.length - 1];
+    if (finalPlay && occupiedSeats.length === 4) {
+      const finalSeat = seatOf(finalPlay.playerId);
+      scheduleTrickCollection(occupiedSeats, finalSeat);
+    }
   }, [capturingTrick, state.currentTrick.plays, viewPlayer.id]);
 
   useLayoutEffect(() => {
@@ -452,6 +628,8 @@ export function GameBoard({
     const timeline = gsap.timeline({
       onComplete: () => {
         setCapturingTrick((current) => (current?.version === capturingTrick.version ? null : current));
+        // Clear card visibility for next trick
+        cardVisibilityMap.current.clear();
       },
     });
 
@@ -473,7 +651,6 @@ export function GameBoard({
         return targetRect.top + targetRect.height / 2 - (rect.top + rect.height / 2);
       },
       duration: 0.34,
-      delay: 1.0,
       stagger: 0.03,
       ease: 'power3.inOut',
     });

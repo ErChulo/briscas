@@ -2646,13 +2646,13 @@ img.card-view {
     --safe-right: env(safe-area-inset-right, 0px);
     --safe-bottom: env(safe-area-inset-bottom, 0px);
     --safe-left: env(safe-area-inset-left, 0px);
-    --info-rail-width: clamp(44px, 12vw, 58px);
-    --side-card-visible: clamp(30px, 10vw, 48px);
-    --layout-clearance: clamp(6px, 2vw, 12px);
-    --north-visible-depth: clamp(42px, 8vh, 72px);
-    --notification-gap: clamp(6px, 1.5vh, 12px);
-    --deck-inset-x: clamp(34px, 11vw, 58px);
-    --deck-inset-y: clamp(54px, 11vh, 92px);
+    --info-rail-width: clamp(40px, 10vw, 52px);
+    --side-card-visible: clamp(24px, 8vw, 40px);
+    --layout-clearance: clamp(4px, 1.5vw, 8px);
+    --north-visible-depth: clamp(32px, 6vh, 56px);
+    --notification-gap: clamp(4px, 1vh, 8px);
+    --deck-inset-x: clamp(28px, 9vw, 48px);
+    --deck-inset-y: clamp(44px, 9vh, 76px);
 
     /* Compact trick-zone offset: tighter cross layout */
     --trick-offset: calc(
@@ -2664,23 +2664,23 @@ img.card-view {
 
   /* ── West hand ─────────────────────────────── */
   .hand--west {
-    left: calc(-1 * (var(--hand-card-height) - var(--side-card-visible)));
+    left: 0;
     top: 50%;
-    transform: translateY(-50%);
+    transform: translateX(calc(-1 * var(--hand-card-width) * 0.4)) translateY(-50%);
     z-index: 31;
   }
 
   /* West name: vertical, inside board, near card tips */
   .hand__name--west {
     position: absolute;
-    left: calc(var(--side-card-visible) + var(--layout-clearance));
+    left: calc(var(--hand-card-width) * 0.5);
     top: 50%;
     transform: translateY(-50%) rotate(180deg);
-    font-size: clamp(12px, 3.4vw, 17px);
+    font-size: clamp(11px, 3.2vw, 15px);
     line-height: 1;
     font-weight: 700;
     letter-spacing: 0.08em;
-    max-width: 18rem;
+    max-width: 16rem;
     max-height: calc(100% - 0.5rem);
     text-align: center;
     writing-mode: vertical-rl;
@@ -2692,26 +2692,23 @@ img.card-view {
 
   /* ── East hand ─────────────────────────────── */
   .hand--east {
-    right: calc(
-      var(--info-rail-width)
-      - (var(--hand-card-height) - var(--side-card-visible))
-    );
+    right: var(--info-rail-width);
     top: 50%;
-    transform: translateY(-50%);
+    transform: translateX(calc(var(--hand-card-width) * 0.4)) translateY(-50%);
     z-index: 31;
   }
 
   /* East name: vertical, between card tips and info rail */
   .hand__name--east {
     position: absolute;
-    right: calc(var(--info-rail-width) + var(--layout-clearance));
+    right: calc(var(--info-rail-width) + var(--hand-card-width) * 0.5);
     top: 50%;
     transform: translateY(-50%);
-    font-size: clamp(12px, 3.4vw, 17px);
+    font-size: clamp(11px, 3.2vw, 15px);
     line-height: 1;
     font-weight: 700;
     letter-spacing: 0.08em;
-    max-width: 18rem;
+    max-width: 16rem;
     max-height: calc(100% - 0.5rem);
     text-align: center;
     writing-mode: vertical-rl;

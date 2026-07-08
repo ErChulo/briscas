@@ -4,6 +4,8 @@ type SoundName = 'play' | 'capture' | 'win';
 export class SoundEffects {
   private context: AudioContext | null = null;
   private enabled = true;
+  private unlocked = false;
+  private pendingSounds: Array<{ sound: SoundName; timestamp: number }> = [];
 
   public setEnabled(enabled: boolean): void {
     this.enabled = enabled;
@@ -11,8 +13,21 @@ export class SoundEffects {
 
   public unlock(): void {
     const context = this.getContext();
-    if (context?.state === 'suspended') {
-      void context.resume().catch(() => undefined);
+    if (!context) {
+      return;
+    }
+
+    if (context.state === 'suspended') {
+      void context
+        .resume()
+        .then(() => {
+          this.unlocked = context.state === 'running';
+          this.flushPendingSounds();
+        })
+        .catch(() => undefined);
+    } else {
+      this.unlocked = context.state === 'running';
+      this.flushPendingSounds();
     }
   }
 
@@ -27,17 +42,39 @@ export class SoundEffects {
     }
 
     if (context.state === 'suspended') {
+      // Queue the sound and attempt to resume
+      this.pendingSounds.push({ sound, timestamp: Date.now() });
       void context
         .resume()
         .then(() => {
-          if (context.state === 'running') {
-            this.play(sound);
-          }
+          this.unlocked = context.state === 'running';
+          this.flushPendingSounds();
         })
         .catch(() => undefined);
       return;
     }
 
+    this.unlocked = true;
+    this.emitSound(sound, context);
+  }
+
+  private flushPendingSounds(): void {
+    const context = this.getContext();
+    if (!context || context.state !== 'running') {
+      return;
+    }
+
+    // Only play sounds that are less than 2 seconds old
+    const now = Date.now();
+    const freshSounds = this.pendingSounds.filter((s) => now - s.timestamp < 2000);
+    this.pendingSounds = [];
+
+    for (const { sound } of freshSounds) {
+      this.emitSound(sound, context);
+    }
+  }
+
+  private emitSound(sound: SoundName, context: AudioContext): void {
     if (sound === 'play') {
       this.cardTap(context);
     } else if (sound === 'capture') {
