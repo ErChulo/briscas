@@ -99,6 +99,94 @@ export function GameBoard({
   const cardVisibilityMap = useRef<Map<Seat, CardVisibilityState>>(new Map());
   const trickGeneration = useRef(0);
   const trickCollectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const prevExchangeEligible = useRef(false);
+
+  /* ── Dynamic trick-card sizing via ResizeObserver ─── */
+  const [trickCardWidth, setTrickCardWidth] = useState(52);
+
+  useEffect(() => {
+    const el = tableAreaRef.current;
+    if (!el) return;
+
+    function computeTrickCardWidth(boardRect: DOMRect): number {
+      const boardW = boardRect.width;
+      const boardH = boardRect.height;
+
+      /* Reserve margins for hands, deck, notification lane, info rail, clearance */
+      const safeTop = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-top, 0px)') || '0', 10) || 0;
+      const safeBottom = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-bottom, 0px)') || '0', 10) || 0;
+      const safeLeft = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-left, 0px)') || '0', 10) || 0;
+      const safeRight = parseInt(getComputedStyle(document.documentElement).getPropertyValue('env(safe-area-inset-right, 0px)') || '0', 10) || 0;
+
+      const northDepth = Math.min(56, boardH * 0.06);
+      const southDepth = Math.min(104, boardH * 0.12);
+      const notificationLane = 36;
+      const deckReserve = Math.min(48, boardW * 0.09);
+      const infoRail = window.innerWidth <= 640 ? Math.min(52, boardW * 0.10) : 0;
+      const clearance = 8;
+
+      const usableW = boardW - safeLeft - safeRight - deckReserve - infoRail - clearance * 2;
+      const usableH = boardH - safeTop - safeBottom - northDepth - southDepth - notificationLane - clearance * 2;
+
+      /* Cross layout: 2 cards side-by-side horizontally, 2 stacked vertically, with offsets */
+      const maxByWidth = usableW / 2.8;
+      const maxByHeight = usableH / 4.2;
+      const raw = Math.min(maxByWidth, maxByHeight);
+
+      /* Clamp to target ranges by viewport class */
+      const vw = window.innerWidth;
+      let minW: number;
+      let maxW: number;
+      if (vw <= 359) { minW = 56; maxW = 66; }
+      else if (vw <= 390) { minW = 62; maxW = 74; }
+      else if (vw <= 480) { minW = 68; maxW = 80; }
+      else if (vw <= 768) { minW = 76; maxW = 96; }
+      else if (vw <= 1280) { minW = 88; maxW = 108; }
+      else { minW = 100; maxW = 120; }
+
+      return Math.round(Math.min(maxW, Math.max(minW, raw)));
+    }
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        const rect = entry.contentRect;
+        if (rect.width > 0 && rect.height > 0) {
+          setTrickCardWidth(computeTrickCardWidth(new DOMRect(0, 0, rect.width, rect.height)));
+        }
+      }
+    });
+
+    observer.observe(el);
+
+    /* Initial measurement */
+    const rect = el.getBoundingClientRect();
+    if (rect.width > 0 && rect.height > 0) {
+      setTrickCardWidth(computeTrickCardWidth(rect));
+    }
+
+    return () => observer.disconnect();
+  }, []);
+
+  /* ── Visual viewport listener: re-measure on mobile chrome changes ─── */
+  useEffect(() => {
+    const vp = window.visualViewport;
+    if (!vp) return;
+    function handleViewportChange() {
+      const el = tableAreaRef.current;
+      if (!el) return;
+      const rect = el.getBoundingClientRect();
+      if (rect.width > 0 && rect.height > 0) {
+        /* Force a re-render so the ResizeObserver callback re-fires */
+        setTrickCardWidth((prev) => prev);
+      }
+    }
+    vp.addEventListener('resize', handleViewportChange);
+    vp.addEventListener('scroll', handleViewportChange);
+    return () => {
+      vp.removeEventListener('resize', handleViewportChange);
+      vp.removeEventListener('scroll', handleViewportChange);
+    };
+  }, []);
 
   /** Wait for browser paint using double requestAnimationFrame */
   function waitForPaint(): Promise<void> {
@@ -220,7 +308,7 @@ export function GameBoard({
   }
 
   /* ── Notification queue ────────────────── */
-  type NotificationType = 'swap' | 'trick-winner' | 'round-result' | 'turn-event' | 'error';
+  type NotificationType = 'swap' | 'trick-winner' | 'round-result' | 'turn-event' | 'error' | 'trump-exchange';
 
   interface QueuedNotification {
     readonly id: string;
@@ -235,6 +323,7 @@ export function GameBoard({
     'round-result': 4000,
     'turn-event': 2200,
     'error': 3000,
+    'trump-exchange': 4500,
   };
 
   const [notificationQueue, setNotificationQueue] = useState<readonly QueuedNotification[]>([]);
@@ -334,6 +423,19 @@ export function GameBoard({
     }
     enqueueNotification(`Triunfo: ${state.trumpCard.toString()}`, 'swap');
   }, [state.trumpCard, state.trumpExchangeUsed]);
+
+  /* Seven-exchange eligibility toast: fire once on false→true transition */
+  useEffect(() => {
+    const isEligible = availableSwapRank === 7;
+    if (isEligible && !prevExchangeEligible.current) {
+      const suitName = state.trumpCard?.suit ? `${state.trumpCard.suit}` : 'triunfo';
+      enqueueNotification(
+        `Tienes el 7 de ${suitName}. Pulsa INFO para cambiarlo por el triunfo.`,
+        'trump-exchange',
+      );
+    }
+    prevExchangeEligible.current = isEligible;
+  }, [availableSwapRank, state.trumpCard]);
 
   useEffect(() => {
     if (!scoreboardOpen) {
@@ -686,7 +788,7 @@ export function GameBoard({
         </div>
       ) : null}
           {fourPlayer ? (
-        <section className="table-area table-area--4p" aria-label="Mesa de juego" ref={tableAreaRef}>
+        <section className="table-area table-area--4p" aria-label="Mesa de juego" ref={tableAreaRef} style={{ '--trick-card-width': `${trickCardWidth}px` } as React.CSSProperties}>
           <div
             className="turn-indicator-4p"
             role="status"
@@ -887,7 +989,6 @@ export function GameBoard({
 
         <div className="table-center">
           <div className="trick-zone" aria-label="Baza actual" ref={trickZoneRef}>
-            {displayedPlays.length === 0 ? <p>La baza está vacía.</p> : null}
             {capturingTrick ? <p className="trick-winner-label">Baza para {playerName(state, capturingTrick.winnerId)}</p> : null}
             {displayedPlays.map((play) => (
               <div
@@ -1008,7 +1109,7 @@ export function GameBoard({
       ) : null}
 
       <div
-        className={`scoreboard-drawer ${scoreboardOpen ? 'scoreboard-drawer--open' : ''}`}
+        className={`scoreboard-drawer ${scoreboardOpen ? 'scoreboard-drawer--open' : ''} ${availableSwapRank ? 'has-trump-exchange' : ''}`}
         ref={scoreboardDrawerRef}
       >
         <button
@@ -1016,6 +1117,7 @@ export function GameBoard({
           className="scoreboard-tab"
           aria-controls="scoreboard-drawer-panel"
           aria-expanded={scoreboardOpen}
+          aria-label={availableSwapRank ? 'Info. Hay un cambio de triunfo disponible.' : 'Info'}
           onClick={() => setScoreboardOpen((open) => !open)}
         >
           <span className="scoreboard-tab__arrow" aria-hidden="true">

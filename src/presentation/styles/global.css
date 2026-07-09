@@ -328,6 +328,7 @@ select {
   top: 0.75rem;
   left: 50%;
   transform: translateX(-50%);
+  width: min(84%, 420px);
   z-index: 80;
   padding: 0.4rem 1rem;
   background: rgb(10 29 20 / 92%);
@@ -1316,11 +1317,21 @@ select {
   gap: 0.45rem;
 }
 
+.final-result-card,
+.final-result-card * {
+  min-width: 0;
+}
+
+.final-result-card h2 {
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
 .final-result-card dl > div {
-  display: flex;
-  gap: 0.7rem;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  justify-content: space-between;
+  gap: 10px;
   border-radius: 0.9rem;
   padding: 0.7rem 0.85rem;
   color: #f8f0c7;
@@ -2653,6 +2664,8 @@ img.card-view {
     --notification-gap: clamp(4px, 1vh, 8px);
     --deck-inset-x: clamp(28px, 9vw, 48px);
     --deck-inset-y: clamp(44px, 9vh, 76px);
+    --owner-hand-bottom-clearance: clamp(10px, 2.5dvh, 24px);
+    --owner-card-visible-depth: clamp(64px, 12dvh, 104px);
 
     /* Compact trick-zone offset: tighter cross layout */
     --trick-offset: calc(
@@ -2764,6 +2777,7 @@ img.card-view {
     inset: 0;
     width: 100vw;
     height: 100dvh;
+    box-sizing: border-box;
     z-index: 200;
     display: flex;
     flex-direction: column;
@@ -2781,7 +2795,8 @@ img.card-view {
     -webkit-backdrop-filter: blur(12px);
     border: 0;
     border-radius: 0;
-    overflow: hidden;
+    overflow-y: auto;
+    overflow-x: hidden;
     transform: none;
     animation: result-fade-in-portal 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
   }
@@ -2793,23 +2808,27 @@ img.card-view {
 
   .final-result-card[data-portaled="true"] > * {
     width: 100%;
-    max-width: min(90vw, 420px);
+    max-width: min(92vw, 560px);
     max-width: calc(
       100vw
       - env(safe-area-inset-left, 0px)
       - env(safe-area-inset-right, 0px)
       - 24px
     );
+    box-sizing: border-box;
+    min-width: 0;
     margin-left: auto;
     margin-right: auto;
   }
 
   .final-result-card[data-portaled="true"] h2 {
-    font-size: clamp(1.35rem, 7vw, 2.4rem);
+    font-size: clamp(1.25rem, 6vw, 2.4rem);
+    line-height: 1.15;
+    text-align: center;
   }
 
   .final-result-card[data-portaled="true"] dl > div {
-    font-size: clamp(0.85rem, 4vw, 1.1rem);
+    font-size: clamp(0.95rem, 4.2vw, 1.35rem);
   }
 
   .final-result-card[data-portaled="true"] .final-result-actions {
@@ -2821,6 +2840,13 @@ img.card-view {
     min-height: 44px;
     font-size: clamp(0.9rem, 4vw, 1.1rem);
     padding: 0.5rem 0.4rem;
+  }
+
+  /* Stack buttons vertically on narrow phones */
+  @media (max-width: 430px) {
+    .final-result-card[data-portaled="true"] .final-result-actions {
+      grid-template-columns: 1fr;
+    }
   }
 
   /* Scale down for very small phones */
@@ -2851,6 +2877,25 @@ img.card-view {
       font-size: clamp(0.75rem, 3.5vw, 0.9rem);
       padding: 0.35rem 0.3rem;
     }
+  }
+
+  /* ── South hand: lift above bottom edge ────── */
+  .hand--south {
+    bottom: calc(
+      var(--safe-bottom)
+      + var(--owner-hand-bottom-clearance)
+    );
+  }
+
+  .hand--south.is-current-turn {
+    --owner-hand-bottom-clearance: clamp(16px, 3.5dvh, 32px);
+  }
+
+  .hand--south .card-view--button,
+  .hand--south button.card-view {
+    min-width: 44px;
+    min-height: 44px;
+    touch-action: manipulation;
   }
 }
 
@@ -2908,9 +2953,38 @@ img.card-view {
   background: rgb(0 255 255 / 8%);
 }
 
+.table-area--4p.debug-layout .hand--south .card-view--button,
+.table-area--4p.debug-layout .hand--south button.card-view {
+  outline: 2px dashed lime;
+}
+
+.final-result-card[data-portaled="true"][data-debug="true"] {
+  outline: 2px dashed orange;
+}
+
+.scoreboard-drawer.has-trump-exchange[data-debug="true"] .scoreboard-tab {
+  outline: 2px dashed gold;
+}
+
 @media (prefers-color-scheme: dark) {
   :root {
     --felt: #0a5c2a;
     --felt-dark: #052e15;
+  }
+}
+
+/* ── Seven-exchange Info highlight pulse ──────── */
+.scoreboard-drawer.has-trump-exchange .scoreboard-tab {
+  animation: info-exchange-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes info-exchange-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgb(245 197 66 / 0%); }
+  50% { box-shadow: 0 0 0 6px rgb(245 197 66 / 40%); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scoreboard-drawer.has-trump-exchange .scoreboard-tab {
+    animation: none;
   }
 }
