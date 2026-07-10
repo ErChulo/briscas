@@ -405,6 +405,7 @@ export function GameBoard({
   const showFinalResult = state.status === GameStatus.Ended;
   const activeResultView: ResultView | null = showFinalResult ? resultView ?? 'summary' : null;
   const scoreEvolutionAvailable = state.status === GameStatus.Ended && hasScoreEvolutionData(state);
+  const canResetRound = state.status === GameStatus.Ended && viewPlayer.id === state.hostPlayerId;
 
   const playsBySeat: Record<Seat, PlayedCard | null> = {
     north: null,
@@ -1101,7 +1102,7 @@ export function GameBoard({
                   {swapButtonLabel(availableSwapRank)}
                 </button>
               ) : null}
-              <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={() => void onReset()}>
+              <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick) || !canResetRound} onClick={() => void onReset()}>
                 Nueva ronda
               </button>
               <button type="button" className="secondary" onClick={onLeave}>
@@ -1172,7 +1173,7 @@ export function GameBoard({
                 >
                   Ver gráfica
                 </button>
-                <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={resetFromResults}>
+                <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick) || !canResetRound} onClick={resetFromResults}>
                   Nueva ronda
                 </button>
                 <button type="button" className="secondary" onClick={leaveFromResults}>
@@ -1229,7 +1230,7 @@ export function GameBoard({
                   {swapButtonLabel(availableSwapRank)}
                 </button>
               ) : null}
-              <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={() => void onReset()}>
+              <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick) || !canResetRound} onClick={() => void onReset()}>
                 Nueva ronda
               </button>
               <button type="button" className="secondary" onClick={onLeave}>
@@ -1436,14 +1437,23 @@ function finalScoreRows(state: GameState): readonly {
   readonly score: number;
   readonly winning: boolean;
 }[] {
+  const winnerOwnerIds = winnerOwnerIdsFor(state);
   return Object.entries(state.scores)
     .map(([ownerId, score]) => ({
       ownerId,
       label: scoreOwnerLabel(state, ownerId),
       score,
-      winning: state.winnerIds.includes(ownerId),
+      winning: winnerOwnerIds.includes(ownerId),
     }))
     .sort((left, right) => right.score - left.score);
+}
+
+function winnerOwnerIdsFor(state: GameState): readonly string[] {
+  if (state.roundOutcome?.type === 'win' || state.roundOutcome?.type === 'abandonment') {
+    return state.roundOutcome.winnerOwnerIds;
+  }
+
+  return [];
 }
 
 function availableTrumpSwapRank(state: GameState, playerId: string): TrumpSwapRank | null {
@@ -1510,14 +1520,20 @@ function playerName(state: GameState, playerId: string): string {
 }
 
 function resultLabel(state: GameState): string {
-  if (state.abandonedPlayerIds.length > 0) {
-    return abandonedResultLabel(state);
-  }
-  if (state.winnerIds.length === 0) {
-    return 'Empate sin ganador declarado.';
+  if (state.roundOutcome?.type === 'draw') {
+    return 'Empate.';
   }
 
-  const labels = state.winnerIds.map((winnerId) => {
+  if (state.roundOutcome?.type === 'abandonment') {
+    return abandonedResultLabel(state, state.roundOutcome.loserPlayerIds, state.roundOutcome.winnerOwnerIds);
+  }
+
+  const winnerOwnerIds = state.roundOutcome?.type === 'win' ? state.roundOutcome.winnerOwnerIds : state.winnerIds;
+  if (winnerOwnerIds.length === 0) {
+    return 'Resultado no declarado.';
+  }
+
+  const labels = winnerOwnerIds.map((winnerId) => {
     const teamPlayers = state.players.filter((player) => player.teamId === winnerId);
     if (teamPlayers.length > 0) {
       const names = teamPlayers.map((player) => player.displayName).join(', ');
@@ -1530,9 +1546,9 @@ function resultLabel(state: GameState): string {
   return `Ganador: ${labels.join(', ')}`;
 }
 
-function abandonedResultLabel(state: GameState): string {
-  const abandoner = state.players.find((player) => state.abandonedPlayerIds.includes(player.id));
-  const winnerId = state.winnerIds[0];
+function abandonedResultLabel(state: GameState, loserPlayerIds: readonly string[], winnerOwnerIds: readonly string[]): string {
+  const abandoner = state.players.find((player) => loserPlayerIds.includes(player.id));
+  const winnerId = winnerOwnerIds[0];
   if (!abandoner || !winnerId) {
     return 'Partida interrumpida por abandono.';
   }

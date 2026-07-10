@@ -91,6 +91,13 @@ describe('Game engine rules', () => {
     expect(scoring.scoreRound(state).winnerIds).toEqual(['p1']);
   });
 
+  it('stores a draw as an explicit round outcome instead of a winner', () => {
+    const state = endedState({ p1: 60, p2: 60 }, false);
+
+    expect(state.roundOutcome).toEqual({ type: 'draw' });
+    expect(new StandardScoringService().scoreRound(state).isDraw).toBe(true);
+  });
+
   it('only swaps the seven on the current turn without playing it', () => {
     const engine = new GameEngine();
     const rules = new BriscasRules();
@@ -117,6 +124,7 @@ describe('Game engine rules', () => {
       scoreHistory: [{ trickIndex: 0, scores: { p1: 0, p2: 0 } }],
       roundNumber: 1,
       deckSeed: 10,
+      roundOutcome: null,
       winnerIds: [],
       abandonedPlayerIds: [],
       loserIds: [],
@@ -173,6 +181,23 @@ describe('Game engine rules', () => {
     expect(restored.gameId).toBe(state.gameId);
     expect(restored.players[0].hand.toArray()[0].id).toBe('oro-1');
     expect(restored.scores).toEqual(state.scores);
+    expect(restored.roundOutcome).toEqual({ type: 'draw' });
+  });
+
+  it('migrates legacy player scores into canonical GameState scores', () => {
+    const legacy = GameStateMapper.toData(endedState({ p1: 0, p2: 0 }, false));
+    const restored = GameStateMapper.fromData({
+      ...legacy,
+      schemaVersion: undefined,
+      scores: undefined,
+      scoreHistory: undefined,
+      roundOutcome: undefined,
+      players: legacy.players.map((player, index) => ({ ...player, score: index === 0 ? 61 : 59 })),
+      winnerIds: ['p1'],
+    });
+
+    expect(restored.scores).toEqual({ p1: 61, p2: 59 });
+    expect(restored.roundOutcome).toEqual({ type: 'win', winnerOwnerIds: ['p1'] });
   });
 
   it('keeps the trump suit available through the final trick', () => {
@@ -196,7 +221,7 @@ describe('Game engine rules', () => {
     expect(Object.values(state.scores).reduce((total, score) => total + score, 0)).toBe(120);
     expect(state.scoreHistory).toHaveLength(21);
     expect(state.scoreHistory.at(-1)?.scores).toEqual(state.scores);
-    expect(state.winnerIds.length).toBeGreaterThan(0);
+    expect(state.roundOutcome?.type).toBe('win');
   });
 });
 
@@ -221,17 +246,24 @@ function swapState({ trumpCard, handCard }: { readonly trumpCard: Card; readonly
     scores: { p1: 0, p2: 0 },
     scoreHistory: [{ trickIndex: 0, scores: { p1: 0, p2: 0 } }],
     roundNumber: 1,
-    deckSeed: 10,      winnerIds: [],
-      abandonedPlayerIds: [],
-      loserIds: [],
-      version: 1,
-      createdAt: 1,
-      updatedAt: 2,
-    };
-  }
+    deckSeed: 10,
+    roundOutcome: null,
+    winnerIds: [],
+    abandonedPlayerIds: [],
+    loserIds: [],
+    version: 1,
+    createdAt: 1,
+    updatedAt: 2,
+  };
+}
 
 function endedState(scores: Record<string, number>, includeCardInHand: boolean): GameState {
   const trumpCard = new Card(Suit.Copa, 4);
+  const highScore = Math.max(...Object.values(scores));
+  const highOwnerIds = Object.entries(scores).filter(([, score]) => score === highScore).map(([ownerId]) => ownerId);
+  const roundOutcome = highOwnerIds.length === 1 && highScore > 60
+    ? { type: 'win' as const, winnerOwnerIds: highOwnerIds }
+    : { type: 'draw' as const };
 
   return {
     gameId: 'ENDED',
@@ -253,11 +285,13 @@ function endedState(scores: Record<string, number>, includeCardInHand: boolean):
     scores,
     scoreHistory: [{ trickIndex: 0, scores }],
     roundNumber: 1,
-    deckSeed: 10,      winnerIds: [],
-      abandonedPlayerIds: [],
-      loserIds: [],
-      version: 1,
-      createdAt: 1,
-      updatedAt: 2,
-    };
-  }
+    deckSeed: 10,
+    roundOutcome,
+    winnerIds: roundOutcome.type === 'win' ? roundOutcome.winnerOwnerIds : highOwnerIds,
+    abandonedPlayerIds: [],
+    loserIds: [],
+    version: 1,
+    createdAt: 1,
+    updatedAt: 2,
+  };
+}

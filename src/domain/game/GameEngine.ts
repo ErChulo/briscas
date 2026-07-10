@@ -52,7 +52,6 @@ export class GameEngine {
       0,
       new Hand(),
       0,
-      0,
       this.teamIdForSeat(input.variant, 0),
       true,
       input.now,
@@ -79,6 +78,7 @@ export class GameEngine {
       scoreHistory: [],
       roundNumber: 1,
       deckSeed: null,
+      roundOutcome: null,
       winnerIds: [],
       abandonedPlayerIds: [],
       loserIds: [],
@@ -104,7 +104,6 @@ export class GameEngine {
       input.displayName,
       seatIndex,
       new Hand(),
-      0,
       0,
       this.teamIdForSeat(state.variant, seatIndex),
       true,
@@ -151,6 +150,7 @@ export class GameEngine {
       scores,
       scoreHistory: [{ trickIndex: 0, scores }],
       deckSeed: seed,
+      roundOutcome: null,
       winnerIds: [],
       abandonedPlayerIds: [],
       loserIds: [],
@@ -255,10 +255,14 @@ export class GameEngine {
         trumpCard: null,
       } satisfies GameState;
       const scoreResult = this.scoringService.scoreRound(endedState);
+      const roundOutcome = scoreResult.isDraw
+        ? { type: 'draw' as const }
+        : { type: 'win' as const, winnerOwnerIds: scoreResult.winnerIds };
 
       return {
         ...endedState,
         winnerIds: scoreResult.winnerIds,
+        roundOutcome,
       };
     }
 
@@ -303,7 +307,7 @@ export class GameEngine {
   public resetGame(state: GameState, now: number): GameState {
     const players = this.sortedPlayers(state.players).map(
       (player) =>
-        new Player(player.id, player.displayName, player.seatIndex, new Hand(), 0, 0, player.teamId, player.connected, now, null),
+        new Player(player.id, player.displayName, player.seatIndex, new Hand(), 0, player.teamId, player.connected, now, null),
     );
     const scores = this.initialScores(players);
 
@@ -323,6 +327,7 @@ export class GameEngine {
       roundNumber: state.roundNumber + 1,
       dealerSeatIndex: (state.dealerSeatIndex + 1) % Math.max(players.length, 1),
       deckSeed: null,
+      roundOutcome: null,
       winnerIds: [],
       abandonedPlayerIds: [],
       loserIds: [],
@@ -367,6 +372,11 @@ export class GameEngine {
       abandonedPlayerIds: [...state.abandonedPlayerIds, playerId],
       loserIds: Array.from(new Set([...state.loserIds, ...losserIds])),
       winnerIds: Array.from(new Set([...state.winnerIds, ...winnerIds])),
+      roundOutcome: {
+        type: 'abandonment',
+        winnerOwnerIds: winnerIds,
+        loserPlayerIds: [playerId],
+      },
       version: state.version + 1,
       updatedAt: now,
     };

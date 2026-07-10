@@ -24,6 +24,11 @@ describe('Player abandonment & heartbeat', () => {
     expect(abandoned.abandonedPlayerIds).toEqual(['p1']);
     expect(abandoned.loserIds).toEqual(['team-0']);
     expect(abandoned.winnerIds).toEqual(['team-1']);
+    expect(abandoned.roundOutcome).toEqual({
+      type: 'abandonment',
+      winnerOwnerIds: ['team-1'],
+      loserPlayerIds: ['p1'],
+    });
   });
 
   it('4P abandonment of a team-1 player flips the result', () => {
@@ -38,6 +43,11 @@ describe('Player abandonment & heartbeat', () => {
     expect(abandoned.status).toBe(GameStatus.Ended);
     expect(abandoned.loserIds).toEqual(['team-1']);
     expect(abandoned.winnerIds).toEqual(['team-0']);
+    expect(abandoned.roundOutcome).toEqual({
+      type: 'abandonment',
+      winnerOwnerIds: ['team-0'],
+      loserPlayerIds: ['p2'],
+    });
   });
 
   it('2P abandonment declares the abandonee as the loser', () => {
@@ -52,6 +62,11 @@ describe('Player abandonment & heartbeat', () => {
     expect(abandoned.loserIds).toEqual(['p2']);
     expect(abandoned.winnerIds).toEqual(['p1']);
     expect(abandoned.abandonedPlayerIds).toEqual(['p2']);
+    expect(abandoned.roundOutcome).toEqual({
+      type: 'abandonment',
+      winnerOwnerIds: ['p1'],
+      loserPlayerIds: ['p2'],
+    });
   });
 
   it('markPlayerAbandoned is a no-op once the game has already ended', () => {
@@ -89,9 +104,9 @@ describe('Player abandonment & heartbeat', () => {
 
   it('Player.isStale flags older-than-grace players and ignores those already abandoned', () => {
     const now = 1_000_000;
-    const fresh = new Player('p1', 'A', 0, new Hand(), 0, 0, null, true, now - 5_000, null);
-    const stale = new Player('p2', 'B', 1, new Hand(), 0, 0, null, true, now - 60_000, null);
-    const gone = new Player('p3', 'C', 2, new Hand(), 0, 0, null, false, now - 90_000, now - 1_000);
+    const fresh = new Player('p1', 'A', 0, new Hand(), 0, null, true, now - 5_000, null);
+    const stale = new Player('p2', 'B', 1, new Hand(), 0, null, true, now - 60_000, null);
+    const gone = new Player('p3', 'C', 2, new Hand(), 0, null, false, now - 90_000, now - 1_000);
 
     expect(fresh.isStale(now, 45_000)).toBe(false);
     expect(stale.isStale(now, 45_000)).toBe(true);
@@ -152,6 +167,7 @@ function endedState(): GameState {
     scoreHistory: [{ trickIndex: 0, scores: { p1: 60, p2: 60 } }],
     roundNumber: 1,
     deckSeed: 10,
+    roundOutcome: { type: 'draw' },
     winnerIds: [],
     abandonedPlayerIds: [],
     loserIds: [],

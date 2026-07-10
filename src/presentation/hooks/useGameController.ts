@@ -116,6 +116,7 @@ export function useGameController() {
           status: GameStatus.Ended,
           currentPlayerId: null,
           winnerIds: [firstOwner],
+          roundOutcome: { type: 'win', winnerOwnerIds: [firstOwner] },
           scores: finalScores,
           scoreHistory: [
             { trickIndex: 0, scores: zeroScores },
@@ -143,7 +144,6 @@ export function useGameController() {
               E2E_LONG_PLAYER_NAMES[index] ?? `${player.displayName} Largo`,
               player.seatIndex,
               player.hand,
-              player.score,
               player.capturedTricks,
               player.teamId,
               player.connected,
@@ -183,7 +183,11 @@ export function useGameController() {
 
   useEffect(() => {
     sounds.current.setEnabled(soundEnabled);
-    globalThis.localStorage?.setItem('briscas.soundEnabled', String(soundEnabled));
+    try {
+      globalThis.localStorage?.setItem('briscas.soundEnabled', String(soundEnabled));
+    } catch {
+      // Storage is best-effort; sound still updates for this session.
+    }
   }, [soundEnabled]);
 
   useEffect(() => {
@@ -276,7 +280,7 @@ export function useGameController() {
   }, [currentPlayer.id, mode, state]);
 
   useEffect(() => {
-    if (mode !== 'menu' || !firebaseConfigured) {
+    if (mode !== 'menu' || !firebaseConfigured || shouldSkipOpenGamePolling()) {
       return;
     }
 
@@ -660,10 +664,16 @@ function makeUseCases(repository: GameRepository): UseCases {
 }
 
 function loadLocalPlayer(displayName: string): CurrentPlayer {
-  const stored = globalThis.localStorage?.getItem('briscas.localPlayer');
-  if (stored) {
-    const parsed = JSON.parse(stored) as CurrentPlayer;
-    return { ...parsed, displayName: displayName.trim() || parsed.displayName };
+  try {
+    const stored = globalThis.localStorage?.getItem('briscas.localPlayer');
+    if (stored) {
+      const parsed = JSON.parse(stored) as Partial<CurrentPlayer>;
+      if (typeof parsed.id === 'string' && typeof parsed.displayName === 'string') {
+        return { id: parsed.id, displayName: displayName.trim() || parsed.displayName };
+      }
+    }
+  } catch {
+    globalThis.localStorage?.removeItem('briscas.localPlayer');
   }
 
   return {
@@ -673,11 +683,23 @@ function loadLocalPlayer(displayName: string): CurrentPlayer {
 }
 
 function saveLocalPlayer(player: CurrentPlayer): void {
-  globalThis.localStorage?.setItem('briscas.localPlayer', JSON.stringify(player));
+  try {
+    globalThis.localStorage?.setItem('briscas.localPlayer', JSON.stringify(player));
+  } catch {
+    // Storage can be unavailable in private mode or after quota errors.
+  }
 }
 
 function loadSoundPreference(): boolean {
-  return globalThis.localStorage?.getItem('briscas.soundEnabled') !== 'false';
+  try {
+    return globalThis.localStorage?.getItem('briscas.soundEnabled') !== 'false';
+  } catch {
+    return true;
+  }
+}
+
+function shouldSkipOpenGamePolling(): boolean {
+  return import.meta.env.DEV && typeof navigator !== 'undefined' && navigator.webdriver;
 }
 
 function withOnlineTimeout<T>(promise: Promise<T>): Promise<T> {

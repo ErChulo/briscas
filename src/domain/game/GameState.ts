@@ -4,6 +4,15 @@ import { Player } from './Player';
 import { Trick } from './Trick';
 import { GameStatus, GameVariant, type GameId, type PlayerId } from './Types';
 
+export type RoundOutcome =
+  | { readonly type: 'win'; readonly winnerOwnerIds: readonly string[] }
+  | { readonly type: 'draw' }
+  | {
+      readonly type: 'abandonment';
+      readonly winnerOwnerIds: readonly string[];
+      readonly loserPlayerIds: readonly PlayerId[];
+    };
+
 export interface ScoreHistoryEntry {
   readonly trickIndex: number;
   readonly scores: Readonly<Record<string, number>>;
@@ -16,6 +25,9 @@ export interface ScoreHistoryEntry {
  * current round. `loserIds` then names the team(s) or player(s) that lost as a
  * consequence — in 2-player mode that is the abandoning player, in 4-player mode that
  * is the abandoning player's team.
+ *
+ * `roundOutcome` is the authoritative presentation result. `winnerIds`,
+ * `abandonedPlayerIds`, and `loserIds` remain for migration and older UI paths.
  */
 export interface GameState {
   readonly gameId: GameId;
@@ -35,6 +47,7 @@ export interface GameState {
   readonly scoreHistory: readonly ScoreHistoryEntry[];
   readonly roundNumber: number;
   readonly deckSeed: number | null;
+  readonly roundOutcome: RoundOutcome | null;
   readonly winnerIds: readonly string[];
   readonly abandonedPlayerIds: readonly string[];
   readonly loserIds: readonly string[];

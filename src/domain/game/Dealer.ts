@@ -14,7 +14,7 @@ export class Dealer {
   public dealInitialHands(players: readonly Player[], seed: number, handSize = 3): DealResult {
     let deck = this.deckFactory.create(seed);
     let dealtPlayers = players.map(
-      (player) => new Player(player.id, player.displayName, player.seatIndex, new Hand(), 0, 0, player.teamId),
+      (player) => new Player(player.id, player.displayName, player.seatIndex, new Hand(), 0, player.teamId),
     );
 
     for (let cardIndex = 0; cardIndex < handSize; cardIndex += 1) {
