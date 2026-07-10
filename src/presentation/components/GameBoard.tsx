@@ -844,7 +844,12 @@ export function GameBoard({
     <main className={`game-shell ${localMode ? 'game-shell--local' : 'game-shell--online'}`}>
       {fourPlayer ? null : notificationElement}
       {fourPlayer ? (
-        <section className="table-area table-area--4p" aria-label="Mesa de juego" ref={tableAreaRef} style={{ '--trick-card-width': `${trickCardWidth}px` } as CSSProperties}>
+        <section
+          className={`table-area table-area--4p ${activeNotification ? 'has-notification' : ''}`}
+          aria-label="Mesa de juego"
+          ref={tableAreaRef}
+          style={{ '--trick-card-width': `${trickCardWidth}px` } as CSSProperties}
+        >
           <div className="board-layer deck-layer" data-layer="deck">
             <div className="deck-zone" aria-label="Mazo y triunfo">
               <div className="deck-zone__trump" aria-hidden="true">
