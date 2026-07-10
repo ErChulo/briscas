@@ -47,7 +47,7 @@ for (const vp of TRICK_CARD_VIEWPORTS) {
       });
       expect(trickWidth).not.toBeNull();
       expect(trickWidth!).toBeGreaterThanOrEqual(46);
-      expect(trickWidth!).toBeLessThanOrEqual(120);
+      expect(trickWidth!).toBeLessThanOrEqual(160);
     });
 
     test('all four trick slots exist', async () => {

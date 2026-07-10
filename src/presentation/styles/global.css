@@ -545,6 +545,39 @@ select {
     inset 0 0.25rem 0.5rem rgb(255 255 255 / 6%);
 }
 
+.board-layer {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+
+.deck-layer {
+  z-index: 10;
+}
+
+.hand-clipping-layer {
+  z-index: 20;
+  overflow: hidden;
+}
+
+.trick-layer {
+  z-index: 30;
+}
+
+.player-label-layer {
+  z-index: 40;
+}
+
+.notification-layer {
+  z-index: 50;
+}
+
+.hand-clipping-layer .hand,
+.hand-clipping-layer .card-view--button,
+.hand-clipping-layer button.card-view {
+  pointer-events: auto;
+}
+
 /* ── Turn indicator ────────────────────────── */
 
 .turn-indicator-4p {
@@ -673,57 +706,61 @@ select {
   pointer-events: auto;
 }
 
+.player-label,
 .hand__name {
-  font-size: 0.6rem;
-  font-weight: 800;
-  color: var(--gold);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 10rem;
-  text-align: center;
-  text-shadow: 0 1px 3px rgb(0 0 0 / 80%);
-}
-
-/* Extracted name elements rendered as siblings of .hand (not inside).
-   These are direct children of .table-area--4p so their z-index: 55
-   places them above all hand containers (z-index: 30) within the
-   table's stacking context, preventing names from being hidden behind
-   other hands' cards or badges. */
-.hand__name--north,
-.hand__name--south,
-.hand__name--east,
-.hand__name--west {
   position: absolute;
-  z-index: 55;
-  pointer-events: none;
+  z-index: 1;
+  max-width: min(14rem, 42vw);
   overflow: visible;
+  color: var(--gold);
+  font-size: clamp(0.58rem, 1.25vw, 0.82rem);
+  font-weight: 800;
+  line-height: 1;
+  letter-spacing: 0.06em;
+  text-align: center;
+  text-overflow: clip;
+  text-shadow: 0 1px 3px rgb(0 0 0 / 80%);
+  text-transform: uppercase;
+  white-space: nowrap;
+  pointer-events: none;
 }
 
+.player-label--north,
 .hand__name--north {
   left: 50%;
-  top: calc(-0.5 * var(--hand-card-height) + 0.15rem);
+  top: calc(0.5 * var(--hand-card-height) + 0.35rem);
   transform: translateX(-50%);
 }
 
+.player-label--south,
 .hand__name--south {
+  bottom: calc(0.5 * var(--hand-card-height) + 0.15rem);
   left: 50%;
-  top: calc(100% - 0.5 * var(--hand-card-height));
   transform: translateX(-50%);
 }
 
-.hand__name--east {
-  top: 50%;
-  right: 0;
-  transform: translate(calc(0.5 * var(--hand-card-height) + 0.35rem), -50%);
+.player-label--east,
+.player-label--west,
+.hand__name--east,
+.hand__name--west {
+  max-width: none;
+  max-height: min(16rem, calc(100% - var(--hand-card-height) - 1rem));
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
 }
 
-.hand__name--west {
+.player-label--east,
+.hand__name--east {
+  right: calc(0.5 * var(--hand-card-height) + 0.35rem);
   top: 50%;
-  left: 0;
-  transform: translate(calc(-0.5 * var(--hand-card-height) - 0.35rem), -50%);
+  transform: translateY(-50%);
+}
+
+.player-label--west,
+.hand__name--west {
+  left: calc(0.5 * var(--hand-card-height) + 0.35rem);
+  top: 50%;
+  transform: translateY(-50%) rotate(180deg);
 }
 
 .hand__cards {
@@ -774,7 +811,7 @@ select {
 .hand--west {
   top: 50%;
   left: 0;
-  transform: translate(calc(-0.5 * var(--hand-card-height)), -50%);
+  transform: translate(calc(0.5 * var(--hand-card-height)), -50%);
 }
 
 .hand--west .hand__cards {
@@ -1574,7 +1611,7 @@ select {
   position: fixed;
   top: 50%;
   left: 0;
-  z-index: 50;
+  z-index: 60;
   display: flex;
   align-items: stretch;
   max-height: min(82vh, 38rem);
@@ -2051,10 +2088,6 @@ img.card-view {
     gap: 0.25rem;
   }
 
-  .trick-zone > p:not(.trick-winner-label) {
-    display: none;
-  }
-
   .played-card {
     width: calc(var(--card-width) * 0.82);
     margin: 0;
@@ -2317,17 +2350,6 @@ img.card-view {
     padding: 0.14rem;
     column-gap: clamp(0.42rem, 2.4vw, 0.7rem);
     row-gap: var(--card-gap);
-  }
-
-  /* 2×2 grid for trick cards on small screens */
-  .trick-zone > p:not(.trick-winner-label) {
-    display: none;
-  }
-
-  .trick-winner-label {
-    top: 0.25rem;
-    padding: 0.16rem 0.42rem;
-    font-size: 0.58rem;
   }
 
   .played-card {
@@ -2769,68 +2791,72 @@ img.card-view {
   .hand--west {
     left: 0;
     top: 50%;
-    transform: translateX(calc(-1 * var(--hand-card-width) * 0.4)) translateY(-50%);
+    transform: translateX(var(--side-card-visible)) translateY(-50%);
     z-index: 31;
   }
 
   /* West name: vertical, inside board, near card tips */
+  .player-label--west,
   .hand__name--west {
-    position: absolute;
-    left: calc(var(--hand-card-width) * 0.5);
+    left: calc(var(--side-card-visible) + 2px);
     top: 50%;
     transform: translateY(-50%) rotate(180deg);
     font-size: clamp(11px, 3.2vw, 15px);
     line-height: 1;
     font-weight: 700;
     letter-spacing: 0.08em;
-    max-width: 16rem;
+    max-width: none;
     max-height: calc(100% - 0.5rem);
     text-align: center;
     writing-mode: vertical-rl;
     text-orientation: mixed;
-    z-index: 55;
     pointer-events: none;
     overflow: visible;
   }
 
   /* ── East hand ─────────────────────────────── */
   .hand--east {
-    right: var(--info-rail-width);
+    right: 0;
     top: 50%;
-    transform: translateX(calc(var(--hand-card-width) * 0.4)) translateY(-50%);
+    transform: translateX(calc(var(--hand-card-height) - var(--side-card-visible))) translateY(-50%);
     z-index: 31;
   }
 
   /* East name: vertical, between card tips and info rail */
+  .player-label--east,
   .hand__name--east {
-    position: absolute;
-    right: calc(var(--info-rail-width) + var(--hand-card-width) * 0.5);
+    right: calc(var(--side-card-visible) + 2px);
     top: 50%;
     transform: translateY(-50%);
     font-size: clamp(11px, 3.2vw, 15px);
     line-height: 1;
     font-weight: 700;
     letter-spacing: 0.08em;
-    max-width: 16rem;
+    max-width: none;
     max-height: calc(100% - 0.5rem);
     text-align: center;
     writing-mode: vertical-rl;
     text-orientation: mixed;
-    z-index: 55;
     pointer-events: none;
     overflow: visible;
   }
 
   /* ── North hand name sizing ────────────────── */
+  .player-label--north,
   .hand__name--north {
     font-size: clamp(0.5rem, 2.5vw, 0.65rem);
-    z-index: 55;
     pointer-events: none;
   }
 
+  .player-label--south,
   .hand__name--south {
+    bottom: calc(
+      var(--safe-bottom)
+      + var(--owner-hand-bottom-clearance)
+      + var(--hand-card-height)
+      + 0.45rem
+    );
     font-size: clamp(0.55rem, 2.8vw, 0.7rem);
-    z-index: 55;
     pointer-events: none;
   }
 

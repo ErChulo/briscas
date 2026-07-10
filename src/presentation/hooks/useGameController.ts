@@ -17,6 +17,8 @@ import { BrowserIdGenerator } from '../../application/services/IdGenerator';
 import { Card } from '../../domain/cards/Card';
 import { GameEngine } from '../../domain/game/GameEngine';
 import type { GameState } from '../../domain/game/GameState';
+import { Player } from '../../domain/game/Player';
+import { Trick } from '../../domain/game/Trick';
 import { GameStatus, GameVariant } from '../../domain/game/Types';
 import type { PlayerId } from '../../domain/game/Types';
 import type { TrumpSwapRank } from '../../domain/rules/RulesEngine';
@@ -34,6 +36,12 @@ const trickResolver = new StandardTrickResolver();
 const optimisticEngine = new GameEngine();
 const ONLINE_ACTION_TIMEOUT_MS = 12_000;
 const ONLINE_ACTION_TIMEOUT_MESSAGE = 'No se pudo conectar. Revisa la conexión e intenta otra vez.';
+const E2E_LONG_PLAYER_NAMES = [
+  'Norte Con Nombre Largo',
+  'Este Con Nombre Largo',
+  'Sur Con Nombre Largo',
+  'Oeste Con Nombre Largo',
+] as const;
 
 interface CurrentPlayer {
   readonly id: string;
@@ -122,8 +130,55 @@ export function useGameController() {
       });
     }
 
+    function showTrickForE2E(event: Event) {
+      const detail = (event as CustomEvent<{ readonly completed?: boolean; readonly longNames?: boolean }>).detail;
+      setState((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const players = detail?.longNames
+          ? current.players.map((player, index) => new Player(
+              player.id,
+              E2E_LONG_PLAYER_NAMES[index] ?? `${player.displayName} Largo`,
+              player.seatIndex,
+              player.hand,
+              player.score,
+              player.capturedTricks,
+              player.teamId,
+              player.connected,
+              player.lastSeenAt,
+              player.abandonedAt,
+            ))
+          : current.players;
+        const fallbackCardIds = ['oro-1', 'copa-3', 'espada-12', 'basto-7'] as const;
+        const plays = [...players]
+          .sort((a, b) => a.seatIndex - b.seatIndex)
+          .map((player, index) => ({
+            playerId: player.id,
+            card: player.hand.toArray()[0] ?? Card.fromId(fallbackCardIds[index % fallbackCardIds.length]),
+          }));
+        const trick = new Trick(plays[0]?.playerId ?? null, plays);
+        const winnerId = plays[0]?.playerId ?? current.currentPlayerId;
+
+        return {
+          ...current,
+          players,
+          currentTrick: detail?.completed ? new Trick(null, []) : trick,
+          lastCompletedTrick: detail?.completed ? trick : null,
+          lastTrickWinnerId: detail?.completed ? winnerId : null,
+          updatedAt: Date.now(),
+          version: current.version + 1,
+        };
+      });
+    }
+
     window.addEventListener('briscas:e2e:end-game', endCurrentGameForE2E);
-    return () => window.removeEventListener('briscas:e2e:end-game', endCurrentGameForE2E);
+    window.addEventListener('briscas:e2e:show-trick', showTrickForE2E);
+    return () => {
+      window.removeEventListener('briscas:e2e:end-game', endCurrentGameForE2E);
+      window.removeEventListener('briscas:e2e:show-trick', showTrickForE2E);
+    };
   }, []);
 
   useEffect(() => {

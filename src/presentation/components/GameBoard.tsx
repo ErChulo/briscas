@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState, type JSX } from 'react';
+import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type JSX } from 'react';
 import { createPortal } from 'react-dom';
 import { gsap } from 'gsap';
 import { BriscasRules } from '../../domain/rules/BriscasRules';
@@ -147,8 +147,9 @@ export function GameBoard({
       else if (vw <= 390) { minW = 62; maxW = 74; }
       else if (vw <= 480) { minW = 68; maxW = 80; }
       else if (vw <= 768) { minW = 76; maxW = 96; }
-      else if (vw <= 1280) { minW = 88; maxW = 108; }
-      else { minW = 100; maxW = 120; }
+      else if (vw <= 1280) { minW = 104; maxW = 132; }
+      else if (vw <= 1600) { minW = 120; maxW = 152; }
+      else { minW = 132; maxW = 160; }
 
       return Math.round(Math.min(maxW, Math.max(minW, raw)));
     }
@@ -759,7 +760,7 @@ export function GameBoard({
     }
 
     const elements = Array.from(trickZoneRef.current.querySelectorAll<HTMLElement>('.played-card--capturing'));
-    const target = Array.from(tableAreaRef.current.querySelectorAll<HTMLElement>('.hand [data-player-target]')).find(
+    const target = Array.from(tableAreaRef.current.querySelectorAll<HTMLElement>('.hand[data-player-target]')).find(
       (element) => element.dataset.playerTarget === capturingTrick.winnerId,
     );
     const targetRect = (target ?? tableAreaRef.current).getBoundingClientRect();
@@ -821,186 +822,174 @@ export function GameBoard({
     onLeave();
   }
 
+  const notificationElement = activeNotification ? (
+    <div
+      className={`notification notification--${activeNotification.type}`}
+      role="status"
+      aria-live="polite"
+      style={{ '--duration': `${activeNotification.durationMs + 450}ms` } as CSSProperties}
+    >
+      {activeNotification.text}
+    </div>
+  ) : null;
+
   return (
     <main className={`game-shell ${localMode ? 'game-shell--local' : 'game-shell--online'}`}>
-      {/* Global notification layer */}
-      {activeNotification ? (
-        <div
-          className={`notification notification--${activeNotification.type}`}
-          role="status"
-          aria-live="polite"
-          style={{ '--duration': `${activeNotification.durationMs + 450}ms` } as React.CSSProperties}
-        >
-          {activeNotification.text}
-        </div>
-      ) : null}
-          {fourPlayer ? (
-        <section className="table-area table-area--4p" aria-label="Mesa de juego" ref={tableAreaRef} style={{ '--trick-card-width': `${trickCardWidth}px` } as React.CSSProperties}>
-          <div
-            className="turn-indicator-4p"
-            role="status"
-            aria-live="polite"
-            data-turn-owner={state.currentPlayerId ?? ''}
-          >
-            {state.status === GameStatus.Playing ? (
-              <span>
-                Toca: <strong>{activePlayerName}</strong>
-              </span>
-            ) : (
-              <span>
-                {state.abandonedPlayerIds.length > 0 ? 'Partida interrumpida' : state.status === GameStatus.Ended ? 'Partida terminada' : 'Esperando…'}
-              </span>
-            )}
-          </div>
-
-          {/* Deck + trump card in upper-left */}
-          <div className="deck-zone" aria-label="Mazo y triunfo">
-            <div className="deck-zone__trump" aria-hidden="true">
-              {state.trumpCard ? (
-                <CardView card={state.trumpCard} label={`Triunfo: ${state.trumpCard.toString()}`} />
-              ) : null}
-            </div>
-            <div className="deck-zone__deck">
-              <div className="deck-zone__deck-inner">
-                <div className={`stock-deck-card ${state.deck.isEmpty ? 'stock-deck-card--empty' : ''}`}>
-                  {state.deck.isEmpty ? <span>Mazo vacío</span> : <CardView hidden label="Mazo de cartas" />}
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* North hand — name extracted outside for correct z-index stacking */}
-          {playerBySeat.north ? (() => {
-            const p = playerBySeat.north!;
-            return (
-              <div
-                key={`hand-north-${p.id}`}
-                className={`hand hand--north ${state.currentPlayerId === p.id ? 'is-active' : ''}`}
-                data-player-target={p.id}
-                aria-label={`Mano de ${p.displayName}`}
-              >
-                {renderPlayerBadge(p, now, ABANDONMENT_GRACE_MS)}
-                <div className="hand__cards">
-                  {Array.from({ length: p.hand.size }, (_, i) => (
-                    <CardView key={i} hidden />
-                  ))}
-                </div>
-              </div>
-            );
-          })() : null}
-          {playerBySeat.north ? (
-            <div key={`name-north-${playerBySeat.north!.id}`} className="hand__name hand__name--north">
-              {playerBySeat.north!.displayName}
-            </div>
-          ) : null}
-
-          {/* East hand */}
-          {playerBySeat.east ? (() => {
-            const p = playerBySeat.east!;
-            return (
-              <div
-                key={`hand-east-${p.id}`}
-                className={`hand hand--east ${state.currentPlayerId === p.id ? 'is-active' : ''}`}
-                data-player-target={p.id}
-                aria-label={`Mano de ${p.displayName}`}
-              >
-                {renderPlayerBadge(p, now, ABANDONMENT_GRACE_MS)}
-                <div className="hand__cards">
-                  {Array.from({ length: p.hand.size }, (_, i) => (
-                    <div className="hand__card-wrapper" key={i}>
-                      <CardView hidden />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })() : null}
-          {playerBySeat.east ? (
-            <div key={`name-east-${playerBySeat.east!.id}`} className="hand__name hand__name--east">
-              {playerBySeat.east!.displayName}
-            </div>
-          ) : null}
-
-          {/* West hand */}
-          {playerBySeat.west ? (() => {
-            const p = playerBySeat.west!;
-            return (
-              <div
-                key={`hand-west-${p.id}`}
-                className={`hand hand--west ${state.currentPlayerId === p.id ? 'is-active' : ''}`}
-                data-player-target={p.id}
-                aria-label={`Mano de ${p.displayName}`}
-              >
-                {renderPlayerBadge(p, now, ABANDONMENT_GRACE_MS)}
-                <div className="hand__cards">
-                  {Array.from({ length: p.hand.size }, (_, i) => (
-                    <div className="hand__card-wrapper" key={i}>
-                      <CardView hidden />
-                    </div>
-                  ))}
-                </div>
-              </div>
-            );
-          })() : null}
-          {playerBySeat.west ? (
-            <div key={`name-west-${playerBySeat.west!.id}`} className="hand__name hand__name--west">
-              {playerBySeat.west!.displayName}
-            </div>
-          ) : null}
-
-          {/* South hand (local player) */}
-          <div
-            key={`hand-south-${viewPlayer.id}`}
-            className={`hand hand--south ${state.currentPlayerId === viewPlayer.id ? 'is-active' : ''}`}
-            aria-label={`Mano de ${viewPlayer.displayName}`}
-            data-player-target={viewPlayer.id}
-          >
-            <div className="hand__cards">
-              {viewPlayer.hand.toArray().map((card) => {
-                const validation = rules.canPlayCard(state, viewPlayer.id, card);
-                return (
-                  <CardView
-                    key={card.id}
-                    card={card}
-                    dataCardId={card.id}
-                    disabled={busy || Boolean(capturingTrick) || !validation.valid}
-                    onClick={() => void onPlayCard(card.id)}
-                  />
-                );
-              })}
-            </div>
-          </div>
-          <div className="hand__name hand__name--south">
-            {viewPlayer.displayName}
-          </div>
-
-          {/* Trick zone with 4 fixed seat-based slots */}
-          <div className="trick-zone" ref={trickZoneRef} aria-label="Baza actual">
-            {capturingTrick ? (
-              <p className="trick-winner-label">
-                Baza para {playerName(state, capturingTrick.winnerId)}
-              </p>
-            ) : null}
-            {SEATS.map((seat) => (
-              <div key={seat} className={`trick-slot trick-slot--${seat}`} data-seat={seat}>
-                {playsBySeat[seat] ? (
-                  <div
-                    key={`${capturingTrick?.version ?? 'current'}-${playsBySeat[seat]!.playerId}-${playsBySeat[seat]!.card.id}`}
-                    className={`played-card ${capturingTrick ? 'played-card--capturing' : ''} ${
-                      state.currentPlayerId === playsBySeat[seat]!.playerId ? 'is-active' : ''
-                    }`}
-                    style={{ transform: `rotate(${TRICK_ORIENTATIONS[seat]}deg)` }}
-                    data-play-key={playKeyFor(playsBySeat[seat]!)}
-                    title={playerName(state, playsBySeat[seat]!.playerId)}
-                  >
-                    <CardView
-                      card={playsBySeat[seat]!.card}
-                      label={`${playerName(state, playsBySeat[seat]!.playerId)} jugó ${playsBySeat[seat]!.card.toString()}`}
-                    />
-                  </div>
+      {fourPlayer ? null : notificationElement}
+      {fourPlayer ? (
+        <section className="table-area table-area--4p" aria-label="Mesa de juego" ref={tableAreaRef} style={{ '--trick-card-width': `${trickCardWidth}px` } as CSSProperties}>
+          <div className="board-layer deck-layer" data-layer="deck">
+            <div className="deck-zone" aria-label="Mazo y triunfo">
+              <div className="deck-zone__trump" aria-hidden="true">
+                {state.trumpCard ? (
+                  <CardView card={state.trumpCard} label={`Triunfo: ${state.trumpCard.toString()}`} />
                 ) : null}
               </div>
-            ))}
+              <div className="deck-zone__deck">
+                <div className="deck-zone__deck-inner">
+                  <div className={`stock-deck-card ${state.deck.isEmpty ? 'stock-deck-card--empty' : ''}`}>
+                    {state.deck.isEmpty ? <span>Mazo vacío</span> : <CardView hidden label="Mazo de cartas" />}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="board-layer hand-clipping-layer" data-layer="hands">
+            {playerBySeat.north ? (() => {
+              const p = playerBySeat.north!;
+              return (
+                <div
+                  key={`hand-north-${p.id}`}
+                  className={`hand hand--north ${state.currentPlayerId === p.id ? 'is-active' : ''}`}
+                  data-player-target={p.id}
+                  aria-label={`Mano de ${p.displayName}`}
+                >
+                  {renderPlayerBadge(p, now, ABANDONMENT_GRACE_MS)}
+                  <div className="hand__cards">
+                    {Array.from({ length: p.hand.size }, (_, i) => (
+                      <CardView key={i} hidden />
+                    ))}
+                  </div>
+                </div>
+              );
+            })() : null}
+
+            {playerBySeat.east ? (() => {
+              const p = playerBySeat.east!;
+              return (
+                <div
+                  key={`hand-east-${p.id}`}
+                  className={`hand hand--east ${state.currentPlayerId === p.id ? 'is-active' : ''}`}
+                  data-player-target={p.id}
+                  aria-label={`Mano de ${p.displayName}`}
+                >
+                  {renderPlayerBadge(p, now, ABANDONMENT_GRACE_MS)}
+                  <div className="hand__cards">
+                    {Array.from({ length: p.hand.size }, (_, i) => (
+                      <div className="hand__card-wrapper" key={i}>
+                        <CardView hidden />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })() : null}
+
+            {playerBySeat.west ? (() => {
+              const p = playerBySeat.west!;
+              return (
+                <div
+                  key={`hand-west-${p.id}`}
+                  className={`hand hand--west ${state.currentPlayerId === p.id ? 'is-active' : ''}`}
+                  data-player-target={p.id}
+                  aria-label={`Mano de ${p.displayName}`}
+                >
+                  {renderPlayerBadge(p, now, ABANDONMENT_GRACE_MS)}
+                  <div className="hand__cards">
+                    {Array.from({ length: p.hand.size }, (_, i) => (
+                      <div className="hand__card-wrapper" key={i}>
+                        <CardView hidden />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })() : null}
+
+            <div
+              key={`hand-south-${viewPlayer.id}`}
+              className={`hand hand--south ${state.currentPlayerId === viewPlayer.id ? 'is-active' : ''}`}
+              aria-label={`Mano de ${viewPlayer.displayName}`}
+              data-player-target={viewPlayer.id}
+            >
+              <div className="hand__cards">
+                {viewPlayer.hand.toArray().map((card) => {
+                  const validation = rules.canPlayCard(state, viewPlayer.id, card);
+                  return (
+                    <CardView
+                      key={card.id}
+                      card={card}
+                      dataCardId={card.id}
+                      disabled={busy || Boolean(capturingTrick) || !validation.valid}
+                      onClick={() => void onPlayCard(card.id)}
+                    />
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+
+          <div className="board-layer trick-layer" data-layer="trick">
+            <div className="trick-zone" ref={trickZoneRef} aria-label="Baza actual">
+              {SEATS.map((seat) => (
+                <div key={seat} className={`trick-slot trick-slot--${seat}`} data-seat={seat}>
+                  {playsBySeat[seat] ? (
+                    <div
+                      key={`${capturingTrick?.version ?? 'current'}-${playsBySeat[seat]!.playerId}-${playsBySeat[seat]!.card.id}`}
+                      className={`played-card ${capturingTrick ? 'played-card--capturing' : ''} ${
+                        state.currentPlayerId === playsBySeat[seat]!.playerId ? 'is-active' : ''
+                      }`}
+                      style={{ transform: `rotate(${TRICK_ORIENTATIONS[seat]}deg)` }}
+                      data-play-key={playKeyFor(playsBySeat[seat]!)}
+                      title={playerName(state, playsBySeat[seat]!.playerId)}
+                    >
+                      <CardView
+                        card={playsBySeat[seat]!.card}
+                        label={`${playerName(state, playsBySeat[seat]!.playerId)} jugó ${playsBySeat[seat]!.card.toString()}`}
+                      />
+                    </div>
+                  ) : null}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="board-layer player-label-layer" data-layer="labels">
+            <div
+              className="turn-indicator-4p"
+              role="status"
+              aria-live="polite"
+              data-turn-owner={state.currentPlayerId ?? ''}
+            >
+              {state.status === GameStatus.Playing ? (
+                <span>
+                  Toca: <strong>{activePlayerName}</strong>
+                </span>
+              ) : (
+                <span>
+                  {state.abandonedPlayerIds.length > 0 ? 'Partida interrumpida' : state.status === GameStatus.Ended ? 'Partida terminada' : 'Esperando…'}
+                </span>
+              )}
+            </div>
+            {playerBySeat.north ? <PlayerLabel key={`name-north-${playerBySeat.north.id}`} player={playerBySeat.north} seat="north" /> : null}
+            {playerBySeat.east ? <PlayerLabel key={`name-east-${playerBySeat.east.id}`} player={playerBySeat.east} seat="east" /> : null}
+            {playerBySeat.west ? <PlayerLabel key={`name-west-${playerBySeat.west.id}`} player={playerBySeat.west} seat="west" /> : null}
+            <PlayerLabel player={viewPlayer} seat="south" />
+          </div>
+
+          <div className="board-layer notification-layer" data-layer="notifications">
+            {notificationElement}
           </div>
 
         </section>
@@ -1036,7 +1025,6 @@ export function GameBoard({
 
         <div className="table-center">
           <div className="trick-zone" aria-label="Baza actual" ref={trickZoneRef}>
-            {capturingTrick ? <p className="trick-winner-label">Baza para {playerName(state, capturingTrick.winnerId)}</p> : null}
             {displayedPlays.map((play) => (
               <div
                 key={`${capturingTrick?.version ?? 'current'}-${play.playerId}-${play.card.id}`}
@@ -1551,4 +1539,12 @@ function renderPlayerBadge(player: Player, now: number, graceMs: number): JSX.El
     return <span className="hand__badge hand__badge--warn">Desconectado…</span>;
   }
   return null;
+}
+
+function PlayerLabel({ player, seat }: { readonly player: Player; readonly seat: Seat }) {
+  return (
+    <div className={`player-label player-label--${seat} hand__name hand__name--${seat}`} data-player-label={seat}>
+      {player.displayName}
+    </div>
+  );
 }
