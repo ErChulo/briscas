@@ -1,4 +1,4 @@
-import { test, expect, type Page } from '@playwright/test';
+import { test, type Page } from '@playwright/test';
 
 const VIEWPORTS = [
   { name: 'mobile-375', width: 375, height: 667 },
@@ -25,7 +25,7 @@ async function start4PlayerGame(page: Page) {
   await page.waitForTimeout(1500);
 }
 
-async function analyzeLayout(page: Page, viewportName: string) {
+async function analyzeLayout(page: Page) {
   const results = await page.evaluate(() => {
     const table = document.querySelector('.table-area--4p');
     if (!table) return { error: 'No 4P table found' };
@@ -45,7 +45,16 @@ async function analyzeLayout(page: Page, viewportName: string) {
     });
 
     // ── Seat positions ──
-    const seats: Record<string, any> = {};
+    const seats: Record<string, {
+      left: number;
+      top: number;
+      right: number;
+      bottom: number;
+      width: number;
+      height: number;
+      transform: string;
+      visible: boolean;
+    }> = {};
     for (const side of ['top', 'left', 'right', 'bottom']) {
       const seat = table.querySelector<HTMLElement>(`.seat-4p--${side}`);
       if (seat) {
@@ -152,7 +161,7 @@ test.describe('4P game board layout inspection', () => {
         await page.screenshot({ path: screenshotPath, fullPage: false });
 
         // Analyze layout
-        const analysis = await analyzeLayout(page, vp.name);
+        const analysis = await analyzeLayout(page);
         console.log(`\n=== Layout analysis at ${vp.name} ===`);
         console.log(JSON.stringify(analysis, null, 2));
 

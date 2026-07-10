@@ -21,15 +21,6 @@ async function start4PlayerGame(page: Page): Promise<void> {
   await page.waitForTimeout(2000);
 }
 
-async function forceGameEnd(page: Page): Promise<void> {
-  await page.evaluate(() => {
-    const state = (window as any).__GAME_STATE__;
-    if (state && state.status !== 'ENDED') {
-      /* Dispatch a custom event or call the game engine to end */
-    }
-  });
-}
-
 for (const vp of MOBILE_VIEWPORTS) {
   test.describe(`Final-results dialog at ${vp.name}`, () => {
     let context: BrowserContext;

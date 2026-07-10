@@ -55,8 +55,6 @@ const PlayPhase = Object.freeze({
 
 type PlayPhaseType = typeof PlayPhase[keyof typeof PlayPhase];
 
-/** Minimum time cards must be fully visible before trick collection (ms) */
-const MIN_BOT_CARD_VISIBLE_MS = 1200;
 const MIN_FINAL_TRICK_CARD_VISIBLE_MS = 1600;
 
 interface AnimatedTrick {
@@ -228,20 +226,8 @@ export function GameBoard({
     }
   }
 
-  /** Wait for entrance animation to complete */
-  function waitForAnimation(element: HTMLElement, fallbackMs = 500): Promise<void> {
-    return Promise.race([
-      new Promise<void>((resolve) => {
-        element.addEventListener('animationend', () => resolve(), { once: true });
-        element.addEventListener('transitionend', () => resolve(), { once: true });
-      }),
-      new Promise<void>((resolve) => setTimeout(resolve, fallbackMs)),
-    ]);
-  }
-
   /** Mark a card as fully visible */
   function markCardVisible(seat: Seat): void {
-    const existing = cardVisibilityMap.current.get(seat);
     cardVisibilityMap.current.set(seat, {
       seat,
       visibleAt: performance.now(),
@@ -351,16 +337,26 @@ export function GameBoard({
     }
 
     const next = notificationQueue[0];
-    setActiveNotification(next);
-    setNotificationQueue((prev) => prev.slice(1));
+    const timer = window.setTimeout(() => {
+      setActiveNotification(next);
+      setNotificationQueue((prev) => (prev[0]?.id === next.id ? prev.slice(1) : prev));
+    }, 0);
 
-    const totalDuration = next.durationMs + 450; // fade in 200ms + visible + fade out 250ms
-    const timer = setTimeout(() => {
+    return () => window.clearTimeout(timer);
+  }, [activeNotification, notificationQueue]);
+
+  useEffect(() => {
+    if (!activeNotification) {
+      return;
+    }
+
+    const totalDuration = activeNotification.durationMs + 450; // fade in 200ms + visible + fade out 250ms
+    const timer = window.setTimeout(() => {
       setActiveNotification(null);
     }, totalDuration);
 
-    return () => clearTimeout(timer);
-  }, [activeNotification, notificationQueue]);
+    return () => window.clearTimeout(timer);
+  }, [activeNotification]);
 
   const [capturingTrick, setCapturingTrick] = useState<AnimatedTrick | null>(null);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
@@ -429,20 +425,31 @@ export function GameBoard({
     if (!state.trumpExchangeUsed) {
       return;
     }
-    enqueueNotification(`Triunfo: ${state.trumpCard.toString()}`, 'swap');
+    const timer = window.setTimeout(() => {
+      enqueueNotification(`Triunfo: ${state.trumpCard?.toString() ?? ''}`, 'swap');
+    }, 0);
+    return () => window.clearTimeout(timer);
   }, [state.trumpCard, state.trumpExchangeUsed]);
 
   /* Seven-exchange eligibility toast: fire once on false→true transition */
   useEffect(() => {
     const isEligible = availableSwapRank === 7;
+    let timer: number | null = null;
     if (isEligible && !prevExchangeEligible.current) {
       const suitName = state.trumpCard?.suit ? `${state.trumpCard.suit}` : 'triunfo';
-      enqueueNotification(
-        `Tienes el 7 de ${suitName}. Pulsa INFO para cambiarlo por el triunfo.`,
-        'trump-exchange',
-      );
+      timer = window.setTimeout(() => {
+        enqueueNotification(
+          `Tienes el 7 de ${suitName}. Pulsa INFO para cambiarlo por el triunfo.`,
+          'trump-exchange',
+        );
+      }, 0);
     }
     prevExchangeEligible.current = isEligible;
+    return () => {
+      if (timer !== null) {
+        window.clearTimeout(timer);
+      }
+    };
   }, [availableSwapRank, state.trumpCard]);
 
   useEffect(() => {
