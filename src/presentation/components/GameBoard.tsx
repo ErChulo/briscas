@@ -32,6 +32,7 @@ interface GameBoardProps {
 const rules = new BriscasRules();
 
 type Seat = 'north' | 'east' | 'south' | 'west';
+type ResultView = 'summary' | 'score-evolution';
 
 const TRICK_ORIENTATIONS: Record<Seat, number> = {
   north: 180,
@@ -100,6 +101,11 @@ export function GameBoard({
   const trickGeneration = useRef(0);
   const trickCollectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevExchangeEligible = useRef(false);
+  const previousResultKey = useRef<string | null>(null);
+  const resultDialogRef = useRef<HTMLElement | null>(null);
+  const openScoreStatsButtonRef = useRef<HTMLButtonElement | null>(null);
+  const scoreStatsCloseButtonRef = useRef<HTMLButtonElement | null>(null);
+  const restoreScoreButtonFocus = useRef(false);
 
   /* ── Dynamic trick-card sizing via ResizeObserver ─── */
   const [trickCardWidth, setTrickCardWidth] = useState(52);
@@ -357,7 +363,7 @@ export function GameBoard({
 
   const [capturingTrick, setCapturingTrick] = useState<AnimatedTrick | null>(null);
   const [scoreboardOpen, setScoreboardOpen] = useState(false);
-  const [openScoreStatsKey, setOpenScoreStatsKey] = useState<string | null>(null);
+  const [resultView, setResultView] = useState<ResultView | null>(null);
   // Tick a clock so the 4P "Desconectado…" badge can re-render when the
   // abandonment grace window elapses, even if no game event fires.
   const [now, setNow] = useState<number>(() => Date.now());
@@ -396,11 +402,12 @@ export function GameBoard({
   const activePlayerName = state.players.find((player) => player.id === state.currentPlayerId)?.displayName ?? 'Nadie';
   const availableSwapRank = availableTrumpSwapRank(state, viewPlayer.id);
   const scoreStatsKey = state.status === GameStatus.Ended ? `${state.gameId}:${state.roundNumber}:${state.version}` : null;
-  const scoreStatsOpen = Boolean(scoreStatsKey && openScoreStatsKey === scoreStatsKey);
   const resultText = state.status === GameStatus.Ended ? resultLabel(state) : null;
   const finalScores = state.status === GameStatus.Ended ? finalScoreRows(state) : [];
   const displayedPlays = capturingTrick?.plays ?? state.currentTrick.plays;
   const showFinalResult = state.status === GameStatus.Ended;
+  const activeResultView: ResultView | null = showFinalResult ? resultView ?? 'summary' : null;
+  const scoreEvolutionAvailable = state.status === GameStatus.Ended && hasScoreEvolutionData(state);
 
   const playsBySeat: Record<Seat, PlayedCard | null> = {
     north: null,
@@ -464,13 +471,22 @@ export function GameBoard({
   }, [scoreboardOpen]);
 
   useEffect(() => {
-    if (!scoreStatsOpen) {
+    if (previousResultKey.current === scoreStatsKey) {
+      return;
+    }
+    previousResultKey.current = scoreStatsKey;
+    restoreScoreButtonFocus.current = false;
+    setResultView(scoreStatsKey ? 'summary' : null);
+  }, [scoreStatsKey]);
+
+  useEffect(() => {
+    if (!showFinalResult || activeResultView === null) {
       return;
     }
 
     function closeOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape' && scoreStatsKey) {
-        setOpenScoreStatsKey(null);
+      if (event.key === 'Escape' && activeResultView === 'score-evolution') {
+        closeScoreStats();
       }
     }
 
@@ -479,7 +495,28 @@ export function GameBoard({
     return () => {
       document.removeEventListener('keydown', closeOnEscape);
     };
-  }, [scoreStatsKey, scoreStatsOpen]);
+  }, [activeResultView, showFinalResult]);
+
+  useEffect(() => {
+    if (!showFinalResult || activeResultView === null) {
+      return;
+    }
+
+    const frame = requestAnimationFrame(() => {
+      if (activeResultView === 'score-evolution') {
+        scoreStatsCloseButtonRef.current?.focus();
+        return;
+      }
+      if (restoreScoreButtonFocus.current) {
+        restoreScoreButtonFocus.current = false;
+        openScoreStatsButtonRef.current?.focus();
+        return;
+      }
+      resultDialogRef.current?.focus();
+    });
+
+    return () => cancelAnimationFrame(frame);
+  }, [activeResultView, showFinalResult]);
 
   useLayoutEffect(() => {
     if (state.status !== GameStatus.Playing || state.deckSeed === null || !tableAreaRef.current) {
@@ -763,15 +800,25 @@ export function GameBoard({
   }, [capturingTrick, state.status]);
 
   function closeScoreStats() {
-    if (scoreStatsKey) {
-      setOpenScoreStatsKey(null);
-    }
+    restoreScoreButtonFocus.current = true;
+    setResultView('summary');
   }
 
   function openScoreStats() {
-    if (scoreStatsKey) {
-      setOpenScoreStatsKey(scoreStatsKey);
+    if (scoreEvolutionAvailable) {
+      restoreScoreButtonFocus.current = false;
+      setResultView('score-evolution');
     }
+  }
+
+  function resetFromResults() {
+    setResultView(null);
+    void onReset();
+  }
+
+  function leaveFromResults() {
+    setResultView(null);
+    onLeave();
   }
 
   return (
@@ -1068,44 +1115,74 @@ export function GameBoard({
       )}
 
       {showFinalResult ? createPortal(
-        <section className="final-result-card panel" aria-live="polite" aria-label="Resultado final" data-portaled="true">
-          <p className="eyebrow">Resultado final</p>
-          <h2>{resultText}</h2>
-          <dl>
-            {finalScores.map((row) => (
-              <div key={row.ownerId} className={row.winning ? 'is-winner' : ''}>
-                <dt>{row.label}</dt>
-                <dd>{row.score} pts</dd>
+        <div className="result-overlay" data-result-view={activeResultView ?? 'summary'}>
+          {activeResultView === 'score-evolution' ? (
+            <div
+              className="score-modal panel"
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="score-evolution-title"
+              ref={(node) => { resultDialogRef.current = node; }}
+              tabIndex={-1}
+            >
+              <button
+                type="button"
+                className="score-modal__close"
+                onClick={closeScoreStats}
+                aria-label="Cerrar estadisticas y volver al resultado final"
+                ref={scoreStatsCloseButtonRef}
+              >
+                Cerrar
+              </button>
+              <ScoreEvolutionChart state={state} />
+            </div>
+          ) : (
+            <section
+              className="final-result-card panel"
+              aria-live="polite"
+              aria-labelledby="final-result-title"
+              role="dialog"
+              aria-modal="true"
+              data-portaled="true"
+              ref={(node) => { resultDialogRef.current = node; }}
+              tabIndex={-1}
+            >
+              <p className="eyebrow">Resultado final</p>
+              <h2 id="final-result-title">{resultText}</h2>
+              <dl>
+                {finalScores.map((row) => (
+                  <div key={row.ownerId} className={row.winning ? 'is-winner' : ''}>
+                    <dt>{row.label}</dt>
+                    <dd>{row.score} pts</dd>
+                  </div>
+                ))}
+              </dl>
+              {!scoreEvolutionAvailable ? (
+                <p id="score-evolution-unavailable" className="result-overlay__hint">
+                  No hay suficientes datos de puntuación para mostrar la gráfica.
+                </p>
+              ) : null}
+              <div className="final-result-actions">
+                <button
+                  type="button"
+                  onClick={openScoreStats}
+                  disabled={!scoreEvolutionAvailable}
+                  aria-describedby={!scoreEvolutionAvailable ? 'score-evolution-unavailable' : undefined}
+                  ref={openScoreStatsButtonRef}
+                >
+                  Ver gráfica
+                </button>
+                <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={resetFromResults}>
+                  Nueva ronda
+                </button>
+                <button type="button" className="secondary" onClick={leaveFromResults}>
+                  Menú
+                </button>
               </div>
-            ))}
-          </dl>
-          <div className="final-result-actions">
-            <button type="button" onClick={openScoreStats}>
-              Ver grafica
-            </button>
-            <button type="button" className="secondary" disabled={busy || Boolean(capturingTrick)} onClick={() => void onReset()}>
-              Nueva ronda
-            </button>
-            <button type="button" className="secondary" onClick={onLeave}>
-              Menú
-            </button>
-          </div>
-        </section>,
+            </section>
+          )}
+        </div>,
         document.body
-      ) : null}
-
-      {state.status === GameStatus.Ended && scoreStatsOpen ? (
-        <div
-          className="score-modal-backdrop"
-          onPointerDown={(event) => event.target === event.currentTarget && closeScoreStats()}
-        >
-          <div className="score-modal panel" role="dialog" aria-modal="true" aria-labelledby="score-evolution-title">
-            <button type="button" className="score-modal__close" onClick={closeScoreStats} aria-label="Cerrar estadisticas">
-              Cerrar
-            </button>
-            <ScoreEvolutionChart state={state} />
-          </div>
-        </div>
       ) : null}
 
       <div
@@ -1167,14 +1244,34 @@ export function GameBoard({
   );
 }
 
+function hasScoreEvolutionData(state: GameState): boolean {
+  return Object.keys(state.scores).length > 0 || state.scoreHistory.some((entry) => Object.keys(entry.scores).length > 0);
+}
+
 function ScoreEvolutionChart({ state }: { readonly state: GameState }) {
   const history = state.scoreHistory.length > 0 ? state.scoreHistory : [{ trickIndex: 0, scores: state.scores }];
   const ownerIds = scoreOwnerIds(state, history);
+
+  if (ownerIds.length === 0) {
+    return (
+      <section className="score-evolution" aria-labelledby="score-evolution-title" data-testid="score-evolution-view">
+        <div className="score-evolution__heading">
+          <div>
+            <p className="eyebrow">Estadísticas</p>
+            <h2 id="score-evolution-title">Evolución acumulada</h2>
+          </div>
+        </div>
+        <p className="score-evolution__empty">No hay historial de puntuación disponible para esta partida.</p>
+      </section>
+    );
+  }
+
   const maxIndex = Math.max(...history.map((entry) => entry.trickIndex), 1);
   const maxScore = Math.max(120, ...history.flatMap((entry) => ownerIds.map((ownerId) => entry.scores[ownerId] ?? 0)));
   const bounds = { left: 58, top: 24, width: 560, height: 220 };
   const yTicks = [0, 30, 60, 90, 120].filter((tick) => tick <= maxScore);
   const finalEntry = history.at(-1);
+  const finalTotals = ownerIds.map((ownerId) => ({ ownerId, score: finalEntry?.scores[ownerId] ?? state.scores[ownerId] ?? 0 }));
   const labelYs = adjustedLabelYs(
     ownerIds.map((ownerId) => ({ ownerId, y: yFor(finalEntry?.scores[ownerId] ?? 0) })),
     bounds.top + 10,
@@ -1197,66 +1294,78 @@ function ScoreEvolutionChart({ state }: { readonly state: GameState }) {
   }
 
   return (
-    <section className="score-evolution" aria-labelledby="score-evolution-title">
+    <section className="score-evolution" aria-labelledby="score-evolution-title" data-testid="score-evolution-view">
       <div className="score-evolution__heading">
         <div>
-          <p className="eyebrow">Estadisticas</p>
-          <h2 id="score-evolution-title">Evolucion acumulada</h2>
+          <p className="eyebrow">Estadísticas</p>
+          <h2 id="score-evolution-title">Evolución acumulada</h2>
         </div>
       </div>
-      <svg className="score-chart" viewBox="0 0 820 320" role="img" aria-label="Grafica de puntuacion acumulada por baza">
-        <rect width="820" height="320" rx="20" fill="#000" />
-        {yTicks.map((tick) => {
-          const y = yFor(tick);
-          return (
-            <g key={tick}>
-              <line x1={bounds.left} y1={y} x2={bounds.left + bounds.width} y2={y} className="score-chart__grid" />
-              <text x={bounds.left - 12} y={y + 4} className="score-chart__tick" textAnchor="end">
-                {tick}
-              </text>
-            </g>
-          );
-        })}
-        <line x1={bounds.left} y1={bounds.top} x2={bounds.left} y2={bounds.top + bounds.height} className="score-chart__axis" />
-        <line
-          x1={bounds.left}
-          y1={bounds.top + bounds.height}
-          x2={bounds.left + bounds.width}
-          y2={bounds.top + bounds.height}
-          className="score-chart__axis"
-        />
-        <text x={bounds.left + bounds.width / 2} y="292" className="score-chart__axis-label" textAnchor="middle">
-          Baza
-        </text>
-        <text x="18" y={bounds.top + bounds.height / 2} className="score-chart__axis-label" textAnchor="middle" transform={`rotate(-90 18 ${bounds.top + bounds.height / 2})`}>
-          Puntos acumulados
-        </text>
-        {ownerIds.map((ownerId, index) => {
-          const color = chartColor(index);
-          const lastScore = history.at(-1)?.scores[ownerId] ?? 0;
-          const endpointY = yFor(lastScore);
-          const labelY = labelYs[ownerId] ?? endpointY;
-          return (
-            <g key={ownerId}>
-              <path d={pathFor(ownerId)} fill="none" stroke={color} className="score-chart__line" />
-              {history.map((entry) => (
-                <circle key={`${ownerId}-${entry.trickIndex}`} cx={xFor(entry.trickIndex)} cy={yFor(entry.scores[ownerId] ?? 0)} r="3.5" fill={color} />
-              ))}
-              <line
-                x1={bounds.left + bounds.width}
-                y1={endpointY}
-                x2={bounds.left + bounds.width + 16}
-                y2={labelY}
-                stroke={color}
-                className="score-chart__leader"
-              />
-              <text x={bounds.left + bounds.width + 22} y={labelY + 4} fill={color} className="score-chart__label">
-                {scoreOwnerLabel(state, ownerId)} {lastScore}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+      <div className="score-evolution-chart-container" data-testid="score-evolution-chart-container">
+        <svg className="score-chart" viewBox="0 0 820 320" role="img" aria-label="Gráfica de puntuación acumulada por baza" data-testid="score-evolution-chart">
+          <rect width="820" height="320" rx="20" fill="#000" />
+          {yTicks.map((tick) => {
+            const y = yFor(tick);
+            return (
+              <g key={tick}>
+                <line x1={bounds.left} y1={y} x2={bounds.left + bounds.width} y2={y} className="score-chart__grid" />
+                <text x={bounds.left - 12} y={y + 4} className="score-chart__tick" textAnchor="end">
+                  {tick}
+                </text>
+              </g>
+            );
+          })}
+          <line x1={bounds.left} y1={bounds.top} x2={bounds.left} y2={bounds.top + bounds.height} className="score-chart__axis" />
+          <line
+            x1={bounds.left}
+            y1={bounds.top + bounds.height}
+            x2={bounds.left + bounds.width}
+            y2={bounds.top + bounds.height}
+            className="score-chart__axis"
+          />
+          <text x={bounds.left + bounds.width / 2} y="292" className="score-chart__axis-label" textAnchor="middle">
+            Baza
+          </text>
+          <text x="18" y={bounds.top + bounds.height / 2} className="score-chart__axis-label" textAnchor="middle" transform={`rotate(-90 18 ${bounds.top + bounds.height / 2})`}>
+            Puntos acumulados
+          </text>
+          {ownerIds.map((ownerId, index) => {
+            const color = chartColor(index);
+            const lastScore = history.at(-1)?.scores[ownerId] ?? 0;
+            const endpointY = yFor(lastScore);
+            const labelY = labelYs[ownerId] ?? endpointY;
+            return (
+              <g key={ownerId} data-owner-id={ownerId} data-final-score={lastScore} data-testid="score-series">
+                <path d={pathFor(ownerId)} fill="none" stroke={color} className="score-chart__line" />
+                {history.map((entry) => (
+                  <circle key={`${ownerId}-${entry.trickIndex}`} cx={xFor(entry.trickIndex)} cy={yFor(entry.scores[ownerId] ?? 0)} r="3.5" fill={color} />
+                ))}
+                <line
+                  x1={bounds.left + bounds.width}
+                  y1={endpointY}
+                  x2={bounds.left + bounds.width + 16}
+                  y2={labelY}
+                  stroke={color}
+                  className="score-chart__leader"
+                />
+                <text x={bounds.left + bounds.width + 22} y={labelY + 4} fill={color} className="score-chart__label">
+                  {scoreOwnerLabel(state, ownerId)} {lastScore}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+      <div className="score-evolution__summary" aria-label="Resumen textual de la puntuación final">
+        <p>Totales finales acumulados:</p>
+        <ul>
+          {finalTotals.map(({ ownerId, score }) => (
+            <li key={ownerId} data-owner-id={ownerId} data-final-score={score}>
+              <strong>{scoreOwnerLabel(state, ownerId)}:</strong> {score} pts
+            </li>
+          ))}
+        </ul>
+      </div>
     </section>
   );
 }

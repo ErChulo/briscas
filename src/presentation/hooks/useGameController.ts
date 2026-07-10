@@ -72,6 +72,61 @@ export function useGameController() {
   const firebaseConfigured = isFirebaseConfigured();
 
   useEffect(() => {
+    if (!import.meta.env.DEV) {
+      return;
+    }
+
+    function endCurrentGameForE2E(event: Event) {
+      const requestedMode = (event as CustomEvent<{ readonly mode?: Mode }>).detail?.mode;
+      if (requestedMode === 'local' || requestedMode === 'online') {
+        setMode(requestedMode);
+      }
+
+      setState((current) => {
+        if (!current) {
+          return current;
+        }
+
+        const ownerIds = Object.keys(current.scores);
+        if (ownerIds.length === 0) {
+          return current;
+        }
+
+        const zeroScores = ownerIds.reduce<Record<string, number>>((scores, ownerId) => {
+          scores[ownerId] = 0;
+          return scores;
+        }, {});
+        const finalScores = ownerIds.reduce<Record<string, number>>((scores, ownerId, index) => {
+          scores[ownerId] = index === 0 ? 63 : index === 1 ? 57 : 0;
+          return scores;
+        }, {});
+        const firstOwner = ownerIds[0];
+        const secondOwner = ownerIds[1] ?? ownerIds[0];
+
+        return {
+          ...current,
+          status: GameStatus.Ended,
+          currentPlayerId: null,
+          winnerIds: [firstOwner],
+          scores: finalScores,
+          scoreHistory: [
+            { trickIndex: 0, scores: zeroScores },
+            { trickIndex: 1, scores: { ...zeroScores, [firstOwner]: 11 } },
+            { trickIndex: 2, scores: { ...zeroScores, [firstOwner]: 11, [secondOwner]: 13 } },
+            { trickIndex: 3, scores: { ...zeroScores, [firstOwner]: 37, [secondOwner]: 13 } },
+            { trickIndex: 4, scores: finalScores },
+          ],
+          updatedAt: Date.now(),
+          version: current.version + 1,
+        };
+      });
+    }
+
+    window.addEventListener('briscas:e2e:end-game', endCurrentGameForE2E);
+    return () => window.removeEventListener('briscas:e2e:end-game', endCurrentGameForE2E);
+  }, []);
+
+  useEffect(() => {
     sounds.current.setEnabled(soundEnabled);
     globalThis.localStorage?.setItem('briscas.soundEnabled', String(soundEnabled));
   }, [soundEnabled]);
