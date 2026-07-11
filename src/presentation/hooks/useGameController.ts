@@ -36,6 +36,8 @@ const trickResolver = new StandardTrickResolver();
 const optimisticEngine = new GameEngine();
 const ONLINE_ACTION_TIMEOUT_MS = 12_000;
 const ONLINE_ACTION_TIMEOUT_MESSAGE = 'No se pudo conectar. Revisa la conexión e intenta otra vez.';
+const BOT_FIRST_TRICK_THINK_MS = 500;
+const BOT_AFTER_COMPLETED_TRICK_THINK_MS = 3000;
 const E2E_LONG_PLAYER_NAMES = [
   'Norte Con Nombre Largo',
   'Este Con Nombre Largo',
@@ -331,9 +333,8 @@ export function useGameController() {
       return;
     }
 
-    // Bot thinking delay: shorter for first trick, longer for subsequent
-    // This delay is for "thinking" animation only - card visibility is tracked separately
-    const delay = state.lastCompletedTrick ? 1800 : 500;
+    // Give the completed trick UI time to hold and collect before the bot starts the next trick.
+    const delay = state.lastCompletedTrick ? BOT_AFTER_COMPLETED_TRICK_THINK_MS : BOT_FIRST_TRICK_THINK_MS;
     const timer = window.setTimeout(() => {
       void localContext.useCases.playCard
         .execute({ gameId: state.gameId, playerId: botPlayerId, cardId })

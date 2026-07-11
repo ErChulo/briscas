@@ -43,30 +43,13 @@ const TRICK_ORIENTATIONS: Record<Seat, number> = {
 
 const SEATS: readonly Seat[] = ['north', 'east', 'south', 'west'];
 
-/** Play phases for trick card lifecycle tracking */
-const PlayPhase = Object.freeze({
-  BOT_THINKING: "bot-thinking",
-  CARD_COMMITTED: "card-committed",
-  CARD_RENDERING: "card-rendering",
-  CARD_VISIBLE: "card-visible",
-  TRICK_HOLDING: "trick-holding",
-  TRICK_COLLECTING: "trick-collecting",
-} as const);
-
-type PlayPhaseType = typeof PlayPhase[keyof typeof PlayPhase];
-
-const MIN_FINAL_TRICK_CARD_VISIBLE_MS = 1600;
+const MIN_COMPLETED_TRICK_VISIBLE_MS = 1600;
 
 interface AnimatedTrick {
   readonly plays: readonly PlayedCard[];
   readonly winnerId: string;
   readonly version: number;
-}
-
-interface CardVisibilityState {
-  readonly seat: Seat;
-  readonly visibleAt: number | null;
-  readonly phase: PlayPhaseType;
+  readonly readyToCollect: boolean;
 }
 
 type HandSnapshot = Readonly<Record<string, readonly string[]>>;
@@ -94,10 +77,6 @@ export function GameBoard({
   const previousHands = useRef<HandSnapshot>({});
   const previousTrumpCard = useRef(state.trumpCard);
 
-  /* ── Card visibility tracking for bot plays ────────────────── */
-  const cardVisibilityMap = useRef<Map<Seat, CardVisibilityState>>(new Map());
-  const trickGeneration = useRef(0);
-  const trickCollectionTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const prevExchangeEligible = useRef(false);
   const previousResultKey = useRef<string | null>(null);
   const resultDialogRef = useRef<HTMLElement | null>(null);
@@ -226,80 +205,6 @@ export function GameBoard({
     }
   }
 
-  /** Mark a card as fully visible */
-  function markCardVisible(seat: Seat): void {
-    cardVisibilityMap.current.set(seat, {
-      seat,
-      visibleAt: performance.now(),
-      phase: PlayPhase.CARD_VISIBLE,
-    });
-  }
-
-  /** Get card visible timestamp */
-  function getCardVisibleTimestamp(seat: Seat): number | null {
-    return cardVisibilityMap.current.get(seat)?.visibleAt ?? null;
-  }
-
-  /** Check if all cards in a trick are visible */
-  function allCardsVisible(occupiedSeats: readonly Seat[]): boolean {
-    return occupiedSeats.every((seat) => {
-      const state = cardVisibilityMap.current.get(seat);
-      return state?.phase === PlayPhase.CARD_VISIBLE && state.visibleAt !== null;
-    });
-  }
-
-  /** Hold card visible for minimum duration */
-  async function holdVisibleCard(seat: Seat, minimumMs: number): Promise<void> {
-    const visibleAt = getCardVisibleTimestamp(seat);
-    if (visibleAt === null) return;
-
-    const elapsed = performance.now() - visibleAt;
-    const remaining = Math.max(0, minimumMs - elapsed);
-    if (remaining > 0) {
-      await new Promise<void>((resolve) => setTimeout(resolve, remaining));
-    }
-  }
-
-  /** Schedule trick collection with proper timing */
-  function scheduleTrickCollection(
-    occupiedSeats: readonly Seat[],
-    finalSeat: Seat
-  ): void {
-    // Cancel any existing collection timer
-    if (trickCollectionTimer.current !== null) {
-      clearTimeout(trickCollectionTimer.current);
-      trickCollectionTimer.current = null;
-    }
-
-    const generation = ++trickGeneration.current;
-
-    // Wait for all cards to become visible, then hold the final card
-    const checkAndCollect = async () => {
-      // Wait until all cards are visible
-      const maxWait = 5000; // Safety timeout
-      const startWait = performance.now();
-      while (!allCardsVisible(occupiedSeats) && performance.now() - startWait < maxWait) {
-        await new Promise<void>((resolve) => setTimeout(resolve, 50));
-      }
-
-      // Check generation hasn't been invalidated
-      if (generation !== trickGeneration.current) return;
-
-      // All cards visible - now hold the final card for minimum duration
-      await holdVisibleCard(finalSeat, MIN_FINAL_TRICK_CARD_VISIBLE_MS);
-
-      // Check generation again
-      if (generation !== trickGeneration.current) return;
-
-      // Signal that trick can be collected
-      trickCollectionTimer.current = null;
-    };
-
-    trickCollectionTimer.current = setTimeout(() => {
-      void checkAndCollect();
-    }, 100); // Small delay to let initial render settle
-  }
-
   /* ── Notification queue ────────────────── */
   type NotificationType = 'swap' | 'trick-winner' | 'round-result' | 'turn-event' | 'error' | 'trump-exchange';
 
@@ -402,7 +307,7 @@ export function GameBoard({
   const resultText = state.status === GameStatus.Ended ? resultLabel(state) : null;
   const finalScores = state.status === GameStatus.Ended ? finalScoreRows(state) : [];
   const displayedPlays = capturingTrick?.plays ?? state.currentTrick.plays;
-  const showFinalResult = state.status === GameStatus.Ended;
+  const showFinalResult = state.status === GameStatus.Ended && !capturingTrick;
   const activeResultView: ResultView | null = showFinalResult ? resultView ?? 'summary' : null;
   const scoreEvolutionAvailable = state.status === GameStatus.Ended && hasScoreEvolutionData(state);
   const canResetRound = state.status === GameStatus.Ended && viewPlayer.id === state.hostPlayerId;
@@ -681,6 +586,7 @@ export function GameBoard({
       plays: state.lastCompletedTrick.plays,
       winnerId: state.lastTrickWinnerId,
       version: state.version,
+      readyToCollect: false,
     });
 
     /* Enqueue trick-winner notification */
@@ -689,14 +595,47 @@ export function GameBoard({
   }, [state.lastCompletedTrick, state.lastTrickWinnerId, state.version]);
 
   useLayoutEffect(() => {
+    if (!capturingTrick || capturingTrick.readyToCollect || !trickZoneRef.current) {
+      return;
+    }
+
+    let cancelled = false;
+    const version = capturingTrick.version;
+
+    void (async () => {
+      await waitForPaint();
+      if (cancelled) {
+        return;
+      }
+
+      const elements = Array.from(trickZoneRef.current?.querySelectorAll<HTMLElement>('.played-card') ?? []);
+      await Promise.all(elements.map((element) => waitForCardImage(element)));
+      if (cancelled) {
+        return;
+      }
+
+      await new Promise<void>((resolve) => window.setTimeout(resolve, MIN_COMPLETED_TRICK_VISIBLE_MS));
+      if (cancelled) {
+        return;
+      }
+
+      setCapturingTrick((current) => (
+        current?.version === version ? { ...current, readyToCollect: true } : current
+      ));
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [capturingTrick]);
+
+  useLayoutEffect(() => {
     if (capturingTrick || !trickZoneRef.current) {
       return;
     }
 
     if (state.currentTrick.plays.length === 0) {
       animatedPlayKeys.current.clear();
-      // Reset card visibility for new trick
-      cardVisibilityMap.current.clear();
       return;
     }
 
@@ -711,15 +650,6 @@ export function GameBoard({
       if (!element) {
         return;
       }
-
-      const seat = seatOf(play.playerId);
-
-      // Mark as rendering
-      cardVisibilityMap.current.set(seat, {
-        seat,
-        visibleAt: null,
-        phase: PlayPhase.CARD_RENDERING,
-      });
 
       animatedPlayKeys.current.add(key);
 
@@ -741,29 +671,13 @@ export function GameBoard({
           rotation: 0,
           duration: 0.24,
           ease: 'power3.out',
-          onComplete: () => {
-            // After animation completes, wait for paint and mark visible
-            void (async () => {
-              await waitForPaint();
-              await waitForCardImage(element);
-              markCardVisible(seat);
-            })();
-          },
         },
       );
     });
-
-    // Schedule trick collection after all cards are visible
-    const occupiedSeats = state.currentTrick.plays.map((play) => seatOf(play.playerId)) as Seat[];
-    const finalPlay = state.currentTrick.plays[state.currentTrick.plays.length - 1];
-    if (finalPlay && occupiedSeats.length === 4) {
-      const finalSeat = seatOf(finalPlay.playerId);
-      scheduleTrickCollection(occupiedSeats, finalSeat);
-    }
   }, [capturingTrick, state.currentTrick.plays, viewPlayer.id]);
 
   useLayoutEffect(() => {
-    if (!capturingTrick || !trickZoneRef.current || !tableAreaRef.current) {
+    if (!capturingTrick?.readyToCollect || !trickZoneRef.current || !tableAreaRef.current) {
       return;
     }
 
@@ -776,16 +690,10 @@ export function GameBoard({
     const timeline = gsap.timeline({
       onComplete: () => {
         setCapturingTrick((current) => (current?.version === capturingTrick.version ? null : current));
-        // Clear card visibility for next trick
-        cardVisibilityMap.current.clear();
       },
     });
 
-    timeline.fromTo(
-      elements,
-      { autoAlpha: 0, scale: 0.82, y: 24, rotation: -3 },
-      { autoAlpha: 1, scale: 1, y: 0, rotation: 0, duration: 0.16, stagger: 0.03, ease: 'power2.out' },
-    );
+    timeline.to(elements, { scale: 1.04, duration: 0.08, stagger: 0.02, ease: 'power2.out' });
     timeline.to(elements, {
       autoAlpha: 0,
       scale: 0.36,
@@ -960,7 +868,7 @@ export function GameBoard({
                   {playsBySeat[seat] ? (
                     <div
                       key={`${capturingTrick?.version ?? 'current'}-${playsBySeat[seat]!.playerId}-${playsBySeat[seat]!.card.id}`}
-                      className={`played-card ${capturingTrick ? 'played-card--capturing' : ''} ${
+                      className={`played-card ${capturingTrick?.readyToCollect ? 'played-card--capturing' : ''} ${
                         state.currentPlayerId === playsBySeat[seat]!.playerId ? 'is-active' : ''
                       }`}
                       style={{ transform: `rotate(${TRICK_ORIENTATIONS[seat]}deg)` }}
@@ -1041,7 +949,7 @@ export function GameBoard({
             {displayedPlays.map((play) => (
               <div
                 key={`${capturingTrick?.version ?? 'current'}-${play.playerId}-${play.card.id}`}
-                className={`played-card ${capturingTrick ? 'played-card--capturing' : ''}`}
+                className={`played-card ${capturingTrick?.readyToCollect ? 'played-card--capturing' : ''}`}
                 data-play-key={playKeyFor(play)}
               >
                 <CardView card={play.card} label={`${playerName(state, play.playerId)} jugó ${play.card.toString()}`} />
